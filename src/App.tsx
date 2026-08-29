@@ -92,6 +92,7 @@ import {
   RAIL_WIDTH_COLLAPSED,
 } from "./components/AlltraSideNav";
 import { NikkiPanel } from "./components/NikkiPanel";
+import { IntelligenceMark } from "./components/IntelligenceMark";
 import { TEMPLATES, type JournalTemplate } from "./templates";
 
 /* ── config ──────────────────────────────────────────────────────────────── */
@@ -137,9 +138,9 @@ const FAVORITES_KEY = "alltra-journal-favorites";
 const TEMPLATE_FAVS_KEY = "alltra-journal-template-favs";
 const CUSTOM_TEMPLATES_KEY = "alltra-journal-custom-templates";
 const DEFAULT_DATE = "2026-06-24";
-// The AI assistant's name. At transfer this reads the user's custom name
-// (default "Alltra Intelligence"); hardcoded "Nikki" for the prototype.
-const ASSISTANT_NAME = "Nikki";
+// The AI assistant's name. At transfer this reads the user's custom name;
+// defaults to the product's own "Alltra Intelligence".
+const ASSISTANT_NAME = "Alltra Intelligence";
 
 function loadFavorites(): string[] {
   try {
@@ -3103,15 +3104,15 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* right: Ask Nikki AI button (full width, above the pills) +
-                    Size / Line / Letter drag sliders */}
+                {/* right: Alltra Intelligence AI button (full width, above the
+                    pills) + Size / Line / Letter drag sliders */}
                 <div className="flex flex-1 flex-col gap-2.5">
                   <button
                     onClick={() => setNikkiOpen(true)}
-                    title={`Ask ${ASSISTANT_NAME}`}
+                    title={ASSISTANT_NAME}
                     className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[var(--alltra-brand)] bg-[rgba(var(--alltra-brand-rgb),0.06)] px-3 py-3 text-[13px] font-semibold text-[var(--alltra-brand)] shadow-sm transition-colors hover:bg-[rgba(var(--alltra-brand-rgb),0.1)]"
                   >
-                    <Sparkles size={15} /> Ask {ASSISTANT_NAME}
+                    <IntelligenceMark size={15} /> {ASSISTANT_NAME}
                   </button>
 
                   <div className="flex flex-1 gap-2.5">

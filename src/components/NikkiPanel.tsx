@@ -5,7 +5,8 @@
  * Wires to real Alltra AI at transfer.
  */
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, X, ArrowUp } from "lucide-react";
+import { X, ArrowUp } from "lucide-react";
+import { IntelligenceMark } from "./IntelligenceMark";
 
 type Msg = { role: "user" } & { text: string };
 
@@ -79,7 +80,7 @@ export function NikkiPanel({
         {/* header */}
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
           <span className="grid h-7 w-7 place-items-center rounded-[10px] bg-[var(--alltra-brand)] text-white">
-            <Sparkles size={15} />
+            <IntelligenceMark size={15} />
           </span>
           <div className="min-w-0 flex-1 leading-tight">
             <p className="text-[13.5px] font-semibold text-text">{assistantName}</p>
