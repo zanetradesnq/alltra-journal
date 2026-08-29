@@ -882,6 +882,74 @@ h2 {
   padding: 40px max(24px, calc((100% - 860px) / 2)) 140px;
 }
 
+/* ── journal byline — document header (avatar · name · updated) + title ──────
+   Ported from the Alltra desktop JournalStarter. Flush-left column: byline →
+   editable title. The title is CHROME (persisted with the entry), not a doc node. */
+.jbyline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+.jbyline-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.33;
+  color: var(--text-muted);
+}
+.jbyline-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.jbyline-avatar-initial {
+  display: grid;
+  place-items: center;
+  background: var(--alltra-brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+.jbyline-name {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.jbyline-sep {
+  color: var(--text-faint);
+}
+.jbyline-status {
+  color: var(--text-muted);
+}
+.jbyline-title {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  text-align: left;
+  font-family: inherit;
+  font-size: 32px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.jbyline-title::placeholder {
+  color: var(--text-faint);
+}
+
 /* ── book-style page turn ──────────────────────────────────────────────── */
 .paper-stack {
   perspective: 1800px;

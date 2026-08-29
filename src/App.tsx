@@ -90,6 +90,7 @@ import {
 import { TodaysJournalWidget } from "./components/TodaysJournalWidget";
 import { JournalQualityWidget } from "./components/JournalQualityWidget";
 import { BlockMenu } from "./components/BlockMenu";
+import { JournalByline } from "./components/JournalByline";
 import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
@@ -224,6 +225,10 @@ type TrashItem = { html: string; title: string; date: string };
 type Saved = {
   pages: string[];
   dates: string[];
+  /** per-entry editable chrome title (parallel to pages; "" = fall back to derived). */
+  titles?: string[];
+  /** epoch ms of the last save, for the byline's "Last updated" stamp. */
+  updatedAt?: number;
   trash?: TrashItem[];
   page: number;
   theme: number;
@@ -298,6 +303,18 @@ function setEntryTitle(html: string, name: string): string {
   }
   h1.textContent = name;
   return el.innerHTML;
+}
+
+// the byline stamp — "3:19 PM" for a save today, "Jun 18, 3:19 PM" any other day
+function updatedStamp(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const clock = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return sameDay ? clock : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${clock}`;
 }
 
 // each theme carries an accent AND a font, so swatches change the whole feel
@@ -1406,6 +1423,16 @@ export default function App() {
       ? boot.dates
       : pagesRef.current.map(() => DEFAULT_DATE)
   );
+  // per-entry editable chrome title (byline), parallel to pages; "" = none
+  const [entryTitles, setEntryTitles] = useState<string[]>(() =>
+    boot?.titles?.length === pagesRef.current.length
+      ? boot.titles
+      : pagesRef.current.map(() => "")
+  );
+  const entryTitlesRef = useRef(entryTitles);
+  entryTitlesRef.current = entryTitles;
+  // last-save time for the byline "Last updated" stamp
+  const [updatedAt, setUpdatedAt] = useState<number>(() => boot?.updatedAt ?? Date.now());
   const [trash, setTrash] = useState<TrashItem[]>(() => boot?.trash ?? []);
   const [trashOpen, setTrashOpen] = useState(false);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
@@ -1628,19 +1655,25 @@ export default function App() {
     // never write an empty provisional entry to storage (it's transient)
     let pages = pagesRef.current;
     let savedDates = datesRef.current;
+    let savedTitles = entryTitlesRef.current;
     let savePage = p;
     const pi = provisionalRef.current;
     if (pi !== null && !hasMeaningfulContent(pagesRef.current[pi] ?? "")) {
       pages = pagesRef.current.slice(0, pi);
       savedDates = datesRef.current.slice(0, pi);
+      savedTitles = entryTitlesRef.current.slice(0, pi);
       if (savePage >= pi) savePage = Math.max(0, pi - 1);
     }
+    const now = Date.now();
+    setUpdatedAt(now);
     try {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           pages,
           dates: savedDates,
+          titles: savedTitles,
+          updatedAt: now,
           trash: trashRef.current,
           page: savePage,
           ...settingsRef.current,
@@ -1757,6 +1790,7 @@ export default function App() {
     pagesRef.current.splice(pi, 1); // empty → remove the transient entry
     setTitles((t) => t.slice(0, pi));
     setDates((d) => d.slice(0, pi));
+    setEntryTitles((t) => t.slice(0, pi));
     setProvisional(null);
   };
 
@@ -1768,6 +1802,7 @@ export default function App() {
     pagesRef.current.splice(pi, 1);
     setTitles((t) => t.slice(0, pi));
     setDates((d) => d.slice(0, pi));
+    setEntryTitles((t) => t.slice(0, pi));
     setProvisional(null);
     setPage((p) => Math.max(0, Math.min(p, pagesRef.current.length - 1)));
   }
@@ -1816,6 +1851,7 @@ export default function App() {
     pagesRef.current.push("");
     const idx = pagesRef.current.length - 1;
     setTitles((t) => [...t, "Untitled"]);
+    setEntryTitles((t) => [...t, ""]);
     setDates((d) => [...d, dateKey]);
     setProvisional(idx);
     setDir("next");
@@ -1865,6 +1901,11 @@ export default function App() {
     // never trash a blank, never-written draft
     if (hasMeaningfulContent(html)) setTrash((tr) => [item, ...tr]);
     setTitles(pagesRef.current.map(deriveTitle));
+    setEntryTitles((t) => {
+      const n = t.filter((_, idx) => idx !== i);
+      while (n.length < pagesRef.current.length) n.push(""); // parallel to a refilled page
+      return n;
+    });
     setDates(nextDates);
 
     const target =
@@ -1898,6 +1939,7 @@ export default function App() {
     pagesRef.current.push(item.html);
     setDates((d) => [...d, item.date]);
     setTitles(pagesRef.current.map(deriveTitle));
+    setEntryTitles((t) => [...t, ""]);
     setTrash((tr) => tr.filter((_, idx) => idx !== ti));
     setDir("next");
     setPage(pagesRef.current.length - 1);
@@ -2709,7 +2751,7 @@ export default function App() {
             </span>
             <span className="truncate font-semibold text-text">
               {view === "editor"
-                ? titles[page] || "Untitled"
+                ? entryTitles[page]?.trim() || titles[page] || "Untitled"
                 : previewSection
                   ? previewSection.charAt(0).toUpperCase() + previewSection.slice(1)
                   : view === "calendar"
@@ -3054,6 +3096,27 @@ export default function App() {
                           onMouseMove={onPaperMove}
                           onMouseLeave={onPaperLeave}
                         >
+                          {view === "editor" && !previewSection && (
+                            <JournalByline
+                              name="Hussein"
+                              initial="H"
+                              status={
+                                isSaved
+                                  ? `Last updated at ${updatedStamp(updatedAt)}`
+                                  : "Saving…"
+                              }
+                              title={entryTitles[page] ?? ""}
+                              placeholder={titles[page] || "Untitled"}
+                              onTitleChange={(v) => {
+                                setEntryTitles((t) => {
+                                  const n = [...t];
+                                  n[page] = v;
+                                  return n;
+                                });
+                                schedulePersist();
+                              }}
+                            />
+                          )}
                           <EditorContent editor={editor} />
                           {view === "editor" && <TableMenu editor={editor} />}
                         </div>

@@ -1,0 +1,67 @@
+/**
+ * JournalByline — the document header that sits above the journal body: a quiet
+ * byline (avatar · name · last-updated) and a large, optional editable title
+ * ("Untitled" when blank). Ported from the Alltra desktop's JournalStarter — the
+ * title is CHROME persisted alongside the entry, not a doc heading node, so the
+ * body stays clean. The <textarea> auto-grows so a long title wraps instead of
+ * running off the paper.
+ */
+import { useLayoutEffect, useRef } from "react";
+
+export interface JournalBylineProps {
+  name: string;
+  initial: string;
+  avatarUrl?: string | undefined;
+  /** the byline's right half — "Last updated at 3:19 PM" / "Saving…". */
+  status: string;
+  title: string;
+  /** shown when the title is blank — the content-derived title, else "Untitled". */
+  placeholder?: string;
+  onTitleChange: (next: string) => void;
+}
+
+export function JournalByline({
+  name,
+  initial,
+  avatarUrl,
+  status,
+  title,
+  placeholder = "Untitled",
+  onTitleChange,
+}: JournalBylineProps) {
+  // auto-grow the title textarea to its content height (it's rows=1 by default)
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (el === null) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
+
+  return (
+    <header className="jbyline">
+      <div className="jbyline-meta">
+        {avatarUrl ? (
+          <img className="jbyline-avatar" src={avatarUrl} alt="" />
+        ) : (
+          <span className="jbyline-avatar jbyline-avatar-initial">{initial}</span>
+        )}
+        <span className="jbyline-name">{name}</span>
+        <span className="jbyline-sep" aria-hidden="true">
+          ·
+        </span>
+        <span className="jbyline-status">{status}</span>
+      </div>
+      <textarea
+        ref={titleRef}
+        className="jbyline-title"
+        rows={1}
+        value={title}
+        placeholder={placeholder}
+        aria-label="Journal title"
+        spellCheck={false}
+        onChange={(event) => onTitleChange(event.target.value)}
+      />
+    </header>
+  );
+}
