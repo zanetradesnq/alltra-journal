@@ -92,6 +92,7 @@ import { TodaysJournalWidget } from "./components/TodaysJournalWidget";
 import { JournalQualityWidget } from "./components/JournalQualityWidget";
 import { BlockMenu } from "./components/BlockMenu";
 import { JournalByline } from "./components/JournalByline";
+import { JournalCover } from "./components/JournalCover";
 import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
@@ -1571,6 +1572,11 @@ export default function App() {
   // a banner as the first node becomes a full-bleed cover; the byline then floats
   // BELOW it (Notion-style). Track it + the byline's height (to clear the body).
   const [hasBanner, setHasBanner] = useState(false);
+  // the leading banner's attrs, so it can render as a full-width chrome cover
+  const [bannerAttrs, setBannerAttrs] = useState<{ colorIndex: number; image: string | null }>({
+    colorIndex: 0,
+    image: null,
+  });
   const [bylineH, setBylineH] = useState(0);
   const bylineRef = useRef<HTMLElement>(null);
   // Below md the section sidebar is hidden (its .alltra-sidenav CSS media query
@@ -1769,7 +1775,16 @@ export default function App() {
     editorProps: { attributes: { class: "pm", spellcheck: "false" } },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
+      {
+        const bn = editor.state.doc.firstChild;
+        const isBanner = bn?.type.name === "banner";
+        setHasBanner(isBanner);
+        if (isBanner)
+          setBannerAttrs({
+            colorIndex: (bn.attrs.colorIndex as number) ?? 0,
+            image: (bn.attrs.image as string | null) ?? null,
+          });
+      }
       pagesRef.current[pageRef.current] = html;      // a provisional entry becomes a real, persisted one the moment it has content
       if (
         provisionalRef.current !== null &&
@@ -2268,6 +2283,28 @@ export default function App() {
   };
   const undo = () => editor?.chain().focus().undo().run();
   const redo = () => editor?.chain().focus().redo().run();
+
+  // the chrome cover edits the leading banner node (at pos 0)
+  const setCover = (colorIndex: number, image: string | null) =>
+    editor
+      ?.chain()
+      .command(({ tr, state }) => {
+        const first = state.doc.firstChild;
+        if (first?.type.name !== "banner") return false;
+        tr.setNodeMarkup(0, undefined, { ...first.attrs, colorIndex, image });
+        return true;
+      })
+      .run();
+  const removeCover = () =>
+    editor
+      ?.chain()
+      .command(({ tr, state }) => {
+        const first = state.doc.firstChild;
+        if (first?.type.name !== "banner") return false;
+        tr.delete(0, first.nodeSize);
+        return true;
+      })
+      .run();
 
   // ── templates ─────────────────────────────────────────────────────────────
   // user-made templates come first, then the built-ins
@@ -3117,9 +3154,27 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
-              <main className="flex flex-1 justify-center overflow-hidden">
-                <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
+            <div className={"flex flex-1 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "gap-6 p-0" : "gap-0 p-0")}>
+              <main className="flex flex-1 flex-col overflow-hidden">
+                {/* the banner as a full-width chrome COVER — connects to the edges,
+                    with the rounded paper card below it (Notion cover behaviour) */}
+                {hasBanner && !focusMode && !previewSection && (
+                  <JournalCover
+                    colorIndex={bannerAttrs.colorIndex}
+                    image={bannerAttrs.image}
+                    onSelect={setCover}
+                    onRemove={removeCover}
+                  />
+                )}
+                {/* padded paper-area — gives the rounded card its breathing room now
+                    the canvas is flush (so the cover can reach the edges) */}
+                <div
+                  className={
+                    "flex min-h-0 w-full flex-1 justify-center overflow-hidden " +
+                    (focusMode ? "" : hasBanner ? "px-6 pb-6 pt-4" : "p-6")
+                  }
+                >
+                <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px]")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
                       side padding so the paper (and its banner) reach the edges */}
                   <div className="relative flex h-full w-full items-center">
@@ -3275,6 +3330,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
+                </div>
               </main>
 
               {panelOpen && (
@@ -3292,7 +3348,8 @@ export default function App() {
                   // width+opacity animate it in smoothly (no display:none jump). Flush
                   // (no bottom pad) in full-page so it reads as an edge side panel.
                   "relative flex min-h-0 shrink-0 flex-col gap-6 " +
-                  (focusMode ? "" : "pb-5 ") +
+                  // the canvas is flush now, so the panel carries its own breathing room
+                  (focusMode ? "" : "my-6 mr-6 pb-5 ") +
                   "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 lg:ease-out " +
                   ((focusMode ? panelPeek : !rightCollapsed)
                     ? focusMode
