@@ -2749,6 +2749,38 @@ export default function App() {
             borderBottom: "1px solid var(--border-2)",
           }}
         >
+          {authoring ? (
+            /* template-authoring mode — occupies the whole bar (was the secondary row) */
+            <div className="flex w-full items-center gap-3">
+              <LayoutTemplate size={15} className="text-[var(--alltra-brand)]" />
+              <span className="text-[13.5px] font-semibold text-text">New template</span>
+              <input
+                autoFocus
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder="Template name"
+                className="w-[220px] rounded-md border border-border bg-card px-2.5 py-1 text-[13px] text-text outline-none placeholder:text-text-faint focus:border-[var(--alltra-brand)]"
+              />
+              <span className="hidden text-[12px] text-text-faint lg:inline">
+                Build it below with the editor &amp; controls, then save.
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={cancelCustomTemplate}
+                  className="rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] font-medium text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveCustomTemplate}
+                  className="flex items-center gap-1.5 rounded-lg bg-[var(--alltra-brand)] px-3 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+                >
+                  <Sparkles size={14} /> Save template
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* mobile nav toggle */}
           <button
             onClick={() => setNavOpen((o) => !o)}
@@ -2782,7 +2814,56 @@ export default function App() {
             </span>
           </div>
 
+          {/* entry date + Beta pill (merged in from the old secondary bar) */}
+          {view === "editor" && !previewSection && (
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="h-4 w-px bg-[var(--border-2)]" />
+              <input
+                type="date"
+                value={dates[page] ?? DEFAULT_DATE}
+                onChange={(e) => {
+                  setDates((d) => {
+                    const n = [...d];
+                    n[page] = e.target.value;
+                    return n;
+                  });
+                  schedulePersist();
+                }}
+                className="rounded-md bg-transparent px-1 py-0.5 text-[12.5px] text-text-muted outline-none transition-colors hover:bg-[var(--hover-overlay)] focus:bg-[var(--hover-overlay)]"
+              />
+              <span className="rounded bg-[var(--hover-overlay-medium)] px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-text-faint">
+                Beta
+              </span>
+            </div>
+          )}
+
           <div className="ml-auto flex items-center gap-2">
+            {/* save status + undo/redo (merged in from the old secondary bar) */}
+            {view === "editor" && !previewSection && (
+              <>
+                <span
+                  className={
+                    "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " +
+                    (isSaved
+                      ? "bg-[var(--hover-overlay)] text-text-muted"
+                      : "bg-[var(--warning-bg)] text-[var(--warning)]")
+                  }
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: isSaved ? "#22c55e" : "var(--warning)" }}
+                  />
+                  {isSaved ? "Saved" : "Saving…"}
+                </span>
+                <ChromeBtn title="Undo" onClick={undo}>
+                  <ArrowLeft size={15} />
+                </ChromeBtn>
+                <ChromeBtn title="Redo" onClick={redo}>
+                  <ArrowRight size={15} />
+                </ChromeBtn>
+                <span className="mx-0.5 h-4 w-px bg-[var(--border-2)]" />
+              </>
+            )}
             {/* entry-scoped controls — only while an entry is actually visible */}
             {view === "editor" && !previewSection && (
               <>
@@ -2895,6 +2976,8 @@ export default function App() {
               H
             </button>
           </div>
+            </>
+          )}
         </header>
 
         {/* Mobile nav drawer — hoisted out of the editor container so the "Menu"
@@ -2985,98 +3068,6 @@ export default function App() {
           style={{ display: view === "editor" ? "flex" : "none" }}
         >
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* ── secondary page toolbar (SecondaryTopNavbar) ───────────── */}
-            <div
-              className="flex items-center px-6"
-              style={{
-                height: 48,
-                background: "var(--surface-2)",
-                borderBottom: "1px solid var(--border-2)",
-              }}
-            >
-              {authoring ? (
-                <div className="flex w-full items-center gap-3">
-                  <LayoutTemplate
-                    size={15}
-                    className="text-[var(--alltra-brand)]"
-                  />
-                  <span className="text-[13.5px] font-semibold text-text">
-                    New template
-                  </span>
-                  <input
-                    autoFocus
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    placeholder="Template name"
-                    className="w-[220px] rounded-md border border-border bg-card px-2.5 py-1 text-[13px] text-text outline-none placeholder:text-text-faint focus:border-[var(--alltra-brand)]"
-                  />
-                  <span className="hidden text-[12px] text-text-faint lg:inline">
-                    Build it below with the editor &amp; controls, then save.
-                  </span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={cancelCustomTemplate}
-                      className="rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] font-medium text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={saveCustomTemplate}
-                      className="flex items-center gap-1.5 rounded-lg bg-[var(--alltra-brand)] px-3 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-                    >
-                      <Sparkles size={14} /> Save template
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-              <div className="flex items-center gap-2 text-[13.5px]">
-                <input
-                  type="date"
-                  value={dates[page] ?? DEFAULT_DATE}
-                  onChange={(e) => {
-                    setDates((d) => {
-                      const n = [...d];
-                      n[page] = e.target.value;
-                      return n;
-                    });
-                    schedulePersist();
-                  }}
-                  className="rounded-md bg-transparent px-1 py-0.5 text-[12.5px] text-text-muted outline-none transition-colors hover:bg-[var(--hover-overlay)] focus:bg-[var(--hover-overlay)]"
-                />
-                <span className="rounded bg-[var(--hover-overlay-medium)] px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-text-faint">
-                  Beta
-                </span>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <span
-                  className={
-                    "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " +
-                    (isSaved
-                      ? "bg-[var(--hover-overlay)] text-text-muted"
-                      : "bg-[var(--warning-bg)] text-[var(--warning)]")
-                  }
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{
-                      background: isSaved ? "#22c55e" : "var(--warning)",
-                    }}
-                  />
-                  {isSaved ? "Saved" : "Saving…"}
-                </span>
-                <ChromeBtn title="Undo" onClick={undo}>
-                  <ArrowLeft size={15} />
-                </ChromeBtn>
-                <ChromeBtn title="Redo" onClick={redo}>
-                  <ArrowRight size={15} />
-                </ChromeBtn>
-              </div>
-              </>
-              )}
-            </div>
-
             {/* canvas — editor paper + right widget float together on the soft canvas */}
             <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
               <main className="flex flex-1 justify-center overflow-hidden">
