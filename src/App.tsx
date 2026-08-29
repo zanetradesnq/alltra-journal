@@ -3117,7 +3117,7 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
+            <div className={"flex flex-1 overflow-hidden bg-[var(--panel-bg)] p-0 " + (focusMode ? "gap-6" : "gap-0")}>
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
@@ -3137,17 +3137,14 @@ export default function App() {
                     </button>
                     )}
 
-                    {/* paper stack — a sheet inside a stack of sheets */}
+                    {/* the sheet fills the content area flush to the nav/panel so the
+                        banner connects to the edges (Notion-style, no floating card) */}
                     <div className="paper-stack relative h-full w-full min-w-0">
-                      {!focusMode && <div className="stack-sheet s2" />}
-                      {!focusMode && <div className="stack-sheet s1" />}
                       <div
                         ref={paperRef}
                         className={
                           "journal relative z-10 flex h-full w-full flex-col overflow-hidden text-text " +
-                          (focusMode
-                            ? "bg-transparent"
-                            : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
+                          (focusMode ? "bg-transparent" : "bg-[var(--surface-2)]")
                         }
                         style={editorStyle}
                       >
@@ -3292,7 +3289,6 @@ export default function App() {
                   // width+opacity animate it in smoothly (no display:none jump). Flush
                   // (no bottom pad) in full-page so it reads as an edge side panel.
                   "relative flex min-h-0 shrink-0 flex-col gap-6 " +
-                  (focusMode ? "" : "pb-5 ") +
                   "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 lg:ease-out " +
                   ((focusMode ? panelPeek : !rightCollapsed)
                     ? focusMode
@@ -3321,10 +3317,7 @@ export default function App() {
               )}
               <aside
                 className={
-                  "hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto bg-card px-8 py-7 " +
-                  (focusMode
-                    ? "border-l border-border" // full-page: flush edge panel, no rounding
-                    : "rounded-[20px] border border-border shadow-sm")
+                  "hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto border-l border-border bg-card px-8 py-7"
                 }
               >
             {/* theme style — always first */}
