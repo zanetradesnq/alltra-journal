@@ -3117,7 +3117,14 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
+            <div
+              className={
+                "flex flex-1 overflow-hidden bg-[var(--panel-bg)] " +
+                // a banner entry becomes a flush "cover page" so the banner reaches
+                // the nav/panel/top; without one it stays a floating rounded card
+                (focusMode ? "gap-6 p-0" : hasBanner ? "gap-0 p-0" : "gap-6 p-6")
+              }
+            >
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
@@ -3139,15 +3146,17 @@ export default function App() {
 
                     {/* paper stack — a sheet inside a stack of sheets */}
                     <div className="paper-stack relative h-full w-full min-w-0">
-                      {!focusMode && <div className="stack-sheet s2" />}
-                      {!focusMode && <div className="stack-sheet s1" />}
+                      {!focusMode && !hasBanner && <div className="stack-sheet s2" />}
+                      {!focusMode && !hasBanner && <div className="stack-sheet s1" />}
                       <div
                         ref={paperRef}
                         className={
                           "journal relative z-10 flex h-full w-full flex-col overflow-hidden text-text " +
                           (focusMode
                             ? "bg-transparent"
-                            : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
+                            : hasBanner
+                              ? "rounded-b-[20px] bg-[var(--surface-2)]"
+                              : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
                         }
                         style={editorStyle}
                       >
@@ -3292,7 +3301,7 @@ export default function App() {
                   // width+opacity animate it in smoothly (no display:none jump). Flush
                   // (no bottom pad) in full-page so it reads as an edge side panel.
                   "relative flex min-h-0 shrink-0 flex-col gap-6 " +
-                  (focusMode ? "" : "pb-5 ") +
+                  (focusMode || hasBanner ? "" : "pb-5 ") +
                   "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 lg:ease-out " +
                   ((focusMode ? panelPeek : !rightCollapsed)
                     ? focusMode
@@ -3322,8 +3331,8 @@ export default function App() {
               <aside
                 className={
                   "hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto bg-card px-8 py-7 " +
-                  (focusMode
-                    ? "border-l border-border" // full-page: flush edge panel, no rounding
+                  (focusMode || hasBanner
+                    ? "border-l border-border" // cover page / full-page: flush edge panel
                     : "rounded-[20px] border border-border shadow-sm")
                 }
               >

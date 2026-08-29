@@ -971,6 +971,8 @@ h2 {
    at the very top) and floats just below the fixed 190px banner */
 .journal-scroll.has-banner .jbanner {
   margin-bottom: 0 !important;
+  /* flush cover — square top corners so it meets the top bar / nav / panel cleanly */
+  border-radius: 0 !important;
 }
 .journal-scroll.has-banner .jbyline {
   position: absolute;
