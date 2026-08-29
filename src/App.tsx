@@ -3287,15 +3287,17 @@ export default function App() {
                   (fully hidden in full-page focus mode) */}
               <div
                 className={
-                  (focusMode && !panelPeek ? "hidden " : "") +
-                  (focusMode && panelPeek ? "pr-6 pt-6 " : "") +
-                  "relative flex min-h-0 shrink-0 flex-col gap-6 pb-5 " +
-                  "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 " +
-                  (focusMode
-                    ? "lg:w-[420px] xl:w-[500px] "
-                    : rightCollapsed
-                      ? "lg:w-0 lg:overflow-hidden lg:opacity-0 "
-                      : "lg:w-[420px] xl:w-[560px] 2xl:w-[621px] ") +
+                  // shown = normal:!collapsed / full-page:peeked. Always in the DOM so
+                  // width+opacity animate it in smoothly (no display:none jump). Flush
+                  // (no bottom pad) in full-page so it reads as an edge side panel.
+                  "relative flex min-h-0 shrink-0 flex-col gap-6 " +
+                  (focusMode ? "" : "pb-5 ") +
+                  "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 lg:ease-out " +
+                  ((focusMode ? panelPeek : !rightCollapsed)
+                    ? focusMode
+                      ? "lg:w-[440px] xl:w-[520px] "
+                      : "lg:w-[420px] xl:w-[560px] 2xl:w-[621px] "
+                    : "lg:w-0 lg:overflow-hidden lg:opacity-0 ") +
                   "max-lg:fixed max-lg:right-0 max-lg:top-[100px] max-lg:bottom-0 max-lg:z-[460] max-lg:w-[621px] max-lg:max-w-[94vw] max-lg:overflow-y-auto max-lg:bg-[var(--panel-bg)] max-lg:p-4 max-lg:shadow-lg max-lg:transition-transform " +
                   (panelOpen ? "max-lg:translate-x-0" : "max-lg:translate-x-full")
                 }
@@ -3316,7 +3318,14 @@ export default function App() {
                   onRemove={() => setShowDailyPerf(false)}
                 />
               )}
-              <aside className="hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto rounded-[20px] border border-border bg-card px-8 py-7 shadow-sm">
+              <aside
+                className={
+                  "hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto bg-card px-8 py-7 " +
+                  (focusMode
+                    ? "border-l border-border" // full-page: flush edge panel, no rounding
+                    : "rounded-[20px] border border-border shadow-sm")
+                }
+              >
             {/* theme style — always first */}
             <section>
               <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
