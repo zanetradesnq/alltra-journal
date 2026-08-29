@@ -102,7 +102,11 @@ import {
   type ThemeName,
   type AccentName,
 } from "./components/AppearancePanel";
-import { AlltraSideNav, RAIL_WIDTH_EXPANDED } from "./components/AlltraSideNav";
+import {
+  AlltraSideNav,
+  RAIL_WIDTH_EXPANDED,
+  RAIL_WIDTH_COLLAPSED,
+} from "./components/AlltraSideNav";
 import { NikkiPanel } from "./components/NikkiPanel";
 import { IntelligenceMark } from "./components/IntelligenceMark";
 import { TEMPLATES, type JournalTemplate } from "./templates";
@@ -1559,6 +1563,9 @@ export default function App() {
   // full-page "focus" mode — hide both side panels + the paper card and render
   // the entry as an edge-to-edge Notion-style document (Expand button / ESC).
   const [focusMode, setFocusMode] = useState(false);
+  // while in full-page mode, a top-left hamburger "peeks" the nav back in so you
+  // can still browse the journal without leaving the full page (Notion-style).
+  const [navPeek, setNavPeek] = useState(false);
   // a banner as the first node becomes a full-bleed cover; the byline then floats
   // BELOW it (Notion-style). Track it + the byline's height (to clear the body).
   const [hasBanner, setHasBanner] = useState(false);
@@ -2223,7 +2230,10 @@ export default function App() {
 
   // ESC leaves full-page focus mode
   useEffect(() => {
-    if (!focusMode) return;
+    if (!focusMode) {
+      setNavPeek(false); // leaving full page → drop the nav peek
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setFocusMode(false);
     };
@@ -2676,7 +2686,7 @@ export default function App() {
           onClose={() => setSpotlightOpen(false)}
         />
       )}
-      {!focusMode && (
+      {(!focusMode || navPeek) && (
         <AppSidebar
           currentApp={currentApp}
           onSwitchApp={setCurrentApp}
@@ -2684,9 +2694,9 @@ export default function App() {
         />
       )}
 
-      {/* Alltra v3 section sidebar (right of the 64px app rail) — hidden when
-          collapsed; the top-left hamburger brings it back (Notion-style) */}
-      {!focusMode && !sidebarCollapsed && (
+      {/* Alltra v3 section sidebar (right of the 64px app rail). Shown normally;
+          in full-page mode it's brought back on demand by the top-left hamburger. */}
+      {(!focusMode || navPeek) && (
       <AlltraSideNav
         section={activeSection}
         onSelect={(id) => {
@@ -2701,8 +2711,10 @@ export default function App() {
           }
         }}
         onSearch={openSpotlight}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        collapsed={!focusMode && sidebarCollapsed}
+        onToggleCollapse={() =>
+          focusMode ? setNavPeek(false) : setSidebarCollapsed((c) => !c)
+        }
         journal={{
           entries: navEntries,
           currentPage: page,
@@ -2730,10 +2742,13 @@ export default function App() {
         className="relative flex h-screen flex-col"
         style={{
           marginLeft: focusMode
-            ? 0
+            ? navPeek
+              ? APP_SIDEBAR_WIDTH + RAIL_WIDTH_EXPANDED
+              : 0
             : isMobile
               ? APP_SIDEBAR_WIDTH
-              : APP_SIDEBAR_WIDTH + (sidebarCollapsed ? 0 : RAIL_WIDTH_EXPANDED),
+              : APP_SIDEBAR_WIDTH +
+                (sidebarCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED),
           transition: "margin-left 0.24s cubic-bezier(0.22,0.61,0.36,1)",
         }}
       >
@@ -2787,11 +2802,12 @@ export default function App() {
             <PanelLeft size={15} />
           </button>
 
-          {/* desktop: show the hidden side panel (Notion-style hamburger) */}
-          {!focusMode && sidebarCollapsed && (
+          {/* full-page mode: a hamburger that peeks the nav back in so you can
+              still browse the journal without leaving the full page */}
+          {focusMode && (
             <button
-              onClick={() => setSidebarCollapsed(false)}
-              title="Show sidebar"
+              onClick={() => setNavPeek((p) => !p)}
+              title={navPeek ? "Hide sidebar" : "Show sidebar"}
               className="hidden h-8 w-8 place-items-center rounded-[8px] text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text md:grid"
             >
               <Menu size={17} />
