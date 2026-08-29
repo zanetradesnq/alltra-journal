@@ -6,36 +6,36 @@
  * identically. Adapted for TipTap v2 + the journal's installed extensions.
  */
 import {
-  Type,
-  Heading1,
-  Heading2,
-  Heading3,
-  Quote,
-  Lightbulb,
-  Code,
-  Minus,
-  List,
-  ListOrdered,
-  ListTodo,
-  ListChecks,
-  Columns3,
-  Rows3,
-  ChevronRight,
-  AlignCenter,
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  ImagePlus,
-  Link2,
-  Smile,
-  CalendarClock,
-  Tag as TagIcon,
-  PanelTop,
-  FileSymlink,
-  CandlestickChart,
-  type LucideIcon,
-} from "lucide-react";
+  TextIcon,
+  Heading1Icon,
+  Heading2Icon,
+  Heading3Icon,
+  QuoteIcon,
+  CalloutIcon,
+  CodeIcon,
+  DividerIcon,
+  BulletedIcon,
+  NumberedIcon,
+  ChecklistIcon,
+  TodoIcon,
+  ToggleIcon,
+  TableColumnsIcon,
+  TableRowsIcon,
+  AlignCenterIcon,
+  BoldIcon,
+  ItalicIcon,
+  UnderlineIcon,
+  StrikeIcon,
+  ImageIcon,
+  LinkIcon,
+  EmojiIcon,
+  DateIcon,
+  TagIcon,
+  BannerIcon,
+  PageLinkIcon,
+  TradeLinkIcon,
+  type EditorIcon,
+} from "../editorIcons";
 import type { Editor, Range } from "@tiptap/core";
 import { HORIZONTAL_TABLE_HTML, VERTICAL_TABLE_HTML } from "../templates";
 
@@ -47,7 +47,7 @@ export interface SlashCommand {
   aliases: string[];
   /** Section header label in the menu. */
   group: string;
-  icon: LucideIcon;
+  icon: EditorIcon;
   /** How a pinned/toolbar quick-action runs it: "format" applies to the current
    *  block; "insert" drops a new block (gets a fresh empty line first). */
   pinKind: "format" | "insert";
@@ -131,7 +131,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Plain paragraph",
     aliases: ["paragraph", "p", "body", "plain"],
     group: "Basic blocks",
-    icon: Type,
+    icon: TextIcon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.setParagraph()),
   },
@@ -141,7 +141,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Large section heading",
     aliases: ["h1", "title", "big"],
     group: "Basic blocks",
-    icon: Heading1,
+    icon: Heading1Icon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.setNode("heading", { level: 1 })),
   },
@@ -151,7 +151,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Medium section heading",
     aliases: ["h2", "subtitle"],
     group: "Basic blocks",
-    icon: Heading2,
+    icon: Heading2Icon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.setNode("heading", { level: 2 })),
   },
@@ -161,7 +161,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Small section heading",
     aliases: ["h3"],
     group: "Basic blocks",
-    icon: Heading3,
+    icon: Heading3Icon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.setNode("heading", { level: 3 })),
   },
@@ -171,7 +171,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Capture a quote",
     aliases: ["quote", "blockquote", "citation"],
     group: "Basic blocks",
-    icon: Quote,
+    icon: QuoteIcon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.toggleBlockquote()),
   },
@@ -181,7 +181,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Colored box to pin a key insight",
     aliases: ["callout", "aside", "note", "insight", "highlight", "box", "tip"],
     group: "Basic blocks",
-    icon: Lightbulb,
+    icon: CalloutIcon,
     // "format" so the pinned action wraps the current selection instead of
     // dropping a fresh empty block beside it
     pinKind: "format",
@@ -200,7 +200,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "A monospace code block",
     aliases: ["code", "snippet", "monospace", "pre", "codeblock"],
     group: "Basic blocks",
-    icon: Code,
+    icon: CodeIcon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.toggleCodeBlock()),
   },
@@ -210,7 +210,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Visually divide blocks",
     aliases: ["divider", "hr", "rule", "line", "separator"],
     group: "Basic blocks",
-    icon: Minus,
+    icon: DividerIcon,
     pinKind: "insert",
     run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run(),
   },
@@ -222,7 +222,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "A simple bulleted list",
     aliases: ["unordered", "ul", "bullet", "list"],
     group: "Lists",
-    icon: List,
+    icon: BulletedIcon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.toggleBulletList()),
   },
@@ -232,7 +232,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "A list with ordering",
     aliases: ["ordered", "ol", "number"],
     group: "Lists",
-    icon: ListOrdered,
+    icon: NumberedIcon,
     pinKind: "format",
     run: (e, r) => applyAt(e, r, (c) => c.toggleOrderedList()),
   },
@@ -242,7 +242,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Checked items strike through",
     aliases: ["checklist", "check list", "checkboxes", "checkbox", "tick"],
     group: "Lists",
-    icon: ListTodo,
+    icon: ChecklistIcon,
     pinKind: "format",
     // Convert to a checklist WITHOUT toggling an existing task list off (which
     // would delete it); only create the list if we're not already in one.
@@ -258,7 +258,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Track tasks with checkboxes",
     aliases: ["todo", "task", "checkbox", "check"],
     group: "Lists",
-    icon: ListChecks,
+    icon: TodoIcon,
     pinKind: "format",
     // Plain to-do: keep/convert an existing task list and clear the checklist
     // variant, instead of blindly toggling (which destroys a checklist list).
@@ -274,7 +274,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Collapsible section",
     aliases: ["toggle", "collapse", "details", "accordion", "fold"],
     group: "Lists",
-    icon: ChevronRight,
+    icon: ToggleIcon,
     pinKind: "insert",
     run: (e, r) => e.chain().focus().deleteRange(r).insertToggle().run(),
   },
@@ -293,7 +293,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       "columns",
     ],
     group: "Content table",
-    icon: Columns3,
+    icon: TableColumnsIcon,
     pinKind: "insert",
     run: (e, r) =>
       e.chain().focus().deleteRange(r).insertContent(HORIZONTAL_TABLE_HTML).run(),
@@ -312,7 +312,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       "rows",
     ],
     group: "Content table",
-    icon: Rows3,
+    icon: TableRowsIcon,
     pinKind: "insert",
     run: (e, r) =>
       e.chain().focus().deleteRange(r).insertContent(VERTICAL_TABLE_HTML).run(),
@@ -334,7 +334,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       "text align",
     ],
     group: "Align",
-    icon: AlignCenter,
+    icon: AlignCenterIcon,
     pinKind: "format",
     // one button cycles the block's alignment each time it's run
     run: (e, r) => {
@@ -352,7 +352,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Bold text",
     aliases: ["bold", "strong", "b"],
     group: "Formatting",
-    icon: Bold,
+    icon: BoldIcon,
     pinKind: "format",
     run: (e, r) => applyMark(e, r, (c) => c.toggleBold()),
   },
@@ -362,7 +362,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Italic text",
     aliases: ["italic", "emphasis", "i"],
     group: "Formatting",
-    icon: Italic,
+    icon: ItalicIcon,
     pinKind: "format",
     run: (e, r) => applyMark(e, r, (c) => c.toggleItalic()),
   },
@@ -372,7 +372,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Underline text",
     aliases: ["underline", "u"],
     group: "Formatting",
-    icon: Underline,
+    icon: UnderlineIcon,
     pinKind: "format",
     run: (e, r) => applyMark(e, r, (c) => c.toggleUnderline()),
   },
@@ -382,7 +382,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Strike through text",
     aliases: ["strikethrough", "strike", "s"],
     group: "Formatting",
-    icon: Strikethrough,
+    icon: StrikeIcon,
     pinKind: "format",
     run: (e, r) => applyMark(e, r, (c) => c.toggleStrike()),
   },
@@ -394,7 +394,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Upload an image from your device",
     aliases: ["image", "photo", "picture", "img", "media", "upload"],
     group: "Insert",
-    icon: ImagePlus,
+    icon: ImageIcon,
     pinKind: "insert",
     run: (e, r) => {
       e.chain().focus().deleteRange(r).run(); // clear the "/image" text first
@@ -407,7 +407,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Insert a link",
     aliases: ["link", "url", "href", "anchor"],
     group: "Insert",
-    icon: Link2,
+    icon: LinkIcon,
     pinKind: "insert",
     run: (e, r) => {
       const url = window.prompt("Link URL");
@@ -425,7 +425,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Pick an emoji or icon",
     aliases: ["emoji", "smiley", "emoticon", "icon", "symbol"],
     group: "Insert",
-    icon: Smile,
+    icon: EmojiIcon,
     // inline node → "format" so it inserts at the cursor; opens the picker
     pinKind: "format",
     run: (e, r) => e.chain().focus().deleteRange(r).insertIcon().run(),
@@ -436,7 +436,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Insert today's date and time",
     aliases: ["date", "today", "now", "time", "timestamp", "datetime"],
     group: "Insert",
-    icon: CalendarClock,
+    icon: DateIcon,
     pinKind: "insert",
     run: (e, r) =>
       e.chain().focus().deleteRange(r).insertContent(nowStamp()).run(),
@@ -459,7 +459,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Add a gradient banner to the top",
     aliases: ["banner", "header", "cover", "gradient", "hero", "top"],
     group: "Insert",
-    icon: PanelTop,
+    icon: BannerIcon,
     // inserts at the top of the doc, not at the cursor → "format" so the pinned
     // button doesn't drop a stray paragraph first
     pinKind: "format",
@@ -471,7 +471,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Reference another journal entry",
     aliases: ["link", "page", "reference", "ref", "backlink", "mention", "journal"],
     group: "Insert",
-    icon: FileSymlink,
+    icon: PageLinkIcon,
     pinKind: "format",
     run: (e, r) => e.chain().focus().deleteRange(r).insertPageLink().run(),
   },
@@ -481,7 +481,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Reference a trade from your dashboard",
     aliases: ["trade", "link trade", "position", "fill", "order", "ticket"],
     group: "Insert",
-    icon: CandlestickChart,
+    icon: TradeLinkIcon,
     pinKind: "format",
     run: (e, r) => e.chain().focus().deleteRange(r).insertTradeLink().run(),
   },

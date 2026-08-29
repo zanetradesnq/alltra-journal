@@ -39,7 +39,6 @@ import {
 import { aiTransform, type AiAction } from "./ai/rewrite";
 import {  ArrowLeft,
   ArrowRight,
-  Bold,
   CalendarDays,
   Check,
   Palette,
@@ -47,12 +46,11 @@ import {  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
-  Columns3,
   Copy,
   Download,
   FileText,
   Printer,
-  GripVertical,  Italic,
+  GripVertical,
   LayoutTemplate,
   Loader2,  Pencil,
   Plus,
@@ -62,12 +60,19 @@ import {  ArrowLeft,
   Sun,
   Trash2,
   X,
-  Rows3,
   Search,  Share2,  Sparkles,
   Star,
   StickyNote,
-  MoreVertical,  Type,
-  Underline,} from "lucide-react";
+  MoreVertical,
+} from "lucide-react";
+import {
+  BoldIcon,
+  ItalicIcon,
+  UnderlineIcon,
+  TextIcon,
+  LineSpacingIcon,
+  LetterSpacingIcon,
+} from "./editorIcons";
 import { AppSidebar, APP_SIDEBAR_WIDTH } from "./components/AppSidebar";
 import { DailyPerformance } from "./components/DailyPerformance";
 import {
@@ -3082,21 +3087,21 @@ export default function App() {
                   <div className="grid grid-cols-3 gap-2.5">
                     <Control
                       shape="circle"
-                      icon={<Bold size={17} />}
+                      icon={<BoldIcon size={17} />}
                       label="Bold"
                       onClick={toggle.bold}
                       active={!!editor?.isActive("bold")}
                     />
                     <Control
                       shape="circle"
-                      icon={<Italic size={17} />}
+                      icon={<ItalicIcon size={17} />}
                       label="Italic"
                       onClick={toggle.italic}
                       active={!!editor?.isActive("italic")}
                     />
                     <Control
                       shape="circle"
-                      icon={<Underline size={17} />}
+                      icon={<UnderlineIcon size={17} />}
                       label="Underline"
                       onClick={toggle.underline}
                       active={!!editor?.isActive("underline")}
@@ -3120,7 +3125,7 @@ export default function App() {
                       <VSlider
                         value={displaySizeV}
                         onChange={pickSize}
-                        icon={<Type size={17} />}
+                        icon={<TextIcon size={17} />}
                         label="Size"
                       />
                     </div>
@@ -3128,7 +3133,7 @@ export default function App() {
                       <VSlider
                         value={spacingV}
                         onChange={setSpacingV}
-                        icon={<Rows3 size={17} />}
+                        icon={<LineSpacingIcon size={17} />}
                         label="Line"
                       />
                     </div>
@@ -3136,7 +3141,7 @@ export default function App() {
                       <VSlider
                         value={displayTrackingV}
                         onChange={pickTracking}
-                        icon={<Columns3 size={17} />}
+                        icon={<LetterSpacingIcon size={17} />}
                         label="Letter"
                       />
                     </div>

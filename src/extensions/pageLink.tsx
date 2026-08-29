@@ -10,7 +10,8 @@ import { createPortal } from "react-dom";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { ArrowUpRight, FileText, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
+import { PageLinkIcon } from "../editorIcons";
 import { useFlipPosition } from "../lib/popover";
 
 export interface PageLinkEntry {
@@ -176,7 +177,7 @@ function PageLinkView({ node, updateAttributes, extension, editor, deleteNode }:
                     className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--hover-overlay)]"
                   >
                     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-card text-text-muted">
-                      <FileText size={14} />
+                      <PageLinkIcon size={14} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[12.5px] font-medium text-text">

@@ -21,36 +21,39 @@ import {
   Trash2,
   Sparkles,
   ChevronRight,
-  Type,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  ListChecks,
-  ListTodo,
-  Quote,
-  Code,
-  Lightbulb,
-  type LucideIcon,
 } from "lucide-react";
+import {
+  TextIcon,
+  Heading1Icon,
+  Heading2Icon,
+  Heading3Icon,
+  BulletedIcon,
+  NumberedIcon,
+  TodoIcon,
+  ChecklistIcon,
+  ToggleIcon,
+  QuoteIcon,
+  CodeIcon,
+  CalloutIcon,
+  type EditorIcon,
+} from "../editorIcons";
 import { SLASH_COMMANDS } from "../slash/commands";
 import { EmojiIconPicker, type IconSel } from "./EmojiIconPicker";
 
 /* ── turn-into list (the command center, block types only) ───────────────── */
-const TURN_INTO: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: "text", label: "Text", icon: Type },
-  { id: "heading-1", label: "Heading 1", icon: Heading1 },
-  { id: "heading-2", label: "Heading 2", icon: Heading2 },
-  { id: "heading-3", label: "Heading 3", icon: Heading3 },
-  { id: "bullet-list", label: "Bulleted list", icon: List },
-  { id: "numbered-list", label: "Numbered list", icon: ListOrdered },
-  { id: "todo-list", label: "To-do list", icon: ListChecks },
-  { id: "checklist", label: "Checklist", icon: ListTodo },
-  { id: "toggle-list", label: "Toggle list", icon: ChevronRight },
-  { id: "quote", label: "Quote", icon: Quote },
-  { id: "code-block", label: "Code", icon: Code },
-  { id: "callout", label: "Callout", icon: Lightbulb },
+const TURN_INTO: { id: string; label: string; icon: EditorIcon }[] = [
+  { id: "text", label: "Text", icon: TextIcon },
+  { id: "heading-1", label: "Heading 1", icon: Heading1Icon },
+  { id: "heading-2", label: "Heading 2", icon: Heading2Icon },
+  { id: "heading-3", label: "Heading 3", icon: Heading3Icon },
+  { id: "bullet-list", label: "Bulleted list", icon: BulletedIcon },
+  { id: "numbered-list", label: "Numbered list", icon: NumberedIcon },
+  { id: "todo-list", label: "To-do list", icon: TodoIcon },
+  { id: "checklist", label: "Checklist", icon: ChecklistIcon },
+  { id: "toggle-list", label: "Toggle list", icon: ToggleIcon },
+  { id: "quote", label: "Quote", icon: QuoteIcon },
+  { id: "code-block", label: "Code", icon: CodeIcon },
+  { id: "callout", label: "Callout", icon: CalloutIcon },
 ];
 
 /* ── color palettes ──────────────────────────────────────────────────────── */

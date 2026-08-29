@@ -5,6 +5,9 @@ node_modules/
 dist/
 dist-ssr/
 
+# typescript incremental build cache
+*.tsbuildinfo
+
 # local env / secrets
 .env
 .env.*
