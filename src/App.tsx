@@ -30,6 +30,7 @@ import { PageLink, type PageLinkEntry } from "./extensions/pageLink";
 import { TradeLink } from "./extensions/tradeLink";
 import { TradeTable } from "./extensions/tradeTable";
 import { MOCK_TRADES } from "./trades";
+import { allTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
 import { SlashCommand } from "./slash/SlashCommand";
@@ -1654,7 +1655,11 @@ export default function App() {
       }),
       TradeLink.configure({
         // PROTOTYPE: mock trades; at transfer swap for the real dashboard source
-        getTrades: () => MOCK_TRADES,
+        // real trades logged in trade tables, falling back to samples when none exist yet
+        getTrades: () => {
+          const t = allTrades();
+          return t.length ? t : MOCK_TRADES;
+        },
         onOpen: () => {
           /* wires to the Alltra trade dashboard at launch */
         },

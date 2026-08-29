@@ -27,6 +27,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import type { Trade } from "../trades";
+import { setTableTrades } from "../tradeStore";
 
 /* ── model ─────────────────────────────────────────────────────────────────── */
 type ColType = "text" | "num" | "date" | "select" | "url" | "img";
@@ -52,6 +54,8 @@ interface TableData {
   rows: Row[];
   /** singular noun for the add-row button ("trade" → "+ New trade"). */
   addLabel?: string;
+  /** stable id — trade tables publish their rows to the trade store under it. */
+  id?: string;
 }
 
 /* ── tag palette (Notion-style washed pills; readable on light + dark) ─────────── */
@@ -158,7 +162,26 @@ function defaultData(): TableData {
       [c[16].id]: [],
     },
   };
-  return { columns, rows: [sample, blankRow(columns)], addLabel: "trade" };
+  return { columns, rows: [sample, blankRow(columns)], addLabel: "trade", id: uid() };
+}
+
+/** Map a trade-table's rows to Trade objects for the store (columns matched by name). */
+function mapTrades(data: TableData): Trade[] {
+  const find = (...names: string[]): string =>
+    data.columns.find((c) => names.some((n) => c.name.toLowerCase().includes(n)))?.id ?? "";
+  const dateC = find("date");
+  const pairC = find("pair", "symbol");
+  const typeC = find("type", "side");
+  const pnlC = find("p&l", "pnl", "profit", "p/l");
+  return data.rows.flatMap((r) => {
+    const symbol = String(r.cells[pairC] ?? "").trim();
+    const pnlRaw = String(r.cells[pnlC] ?? "").trim();
+    const date = String(r.cells[dateC] ?? "").trim();
+    if (!symbol && !pnlRaw && !date) return []; // skip blank rows
+    const side: "long" | "short" = String(r.cells[typeC] ?? "").toLowerCase().includes("short") ? "short" : "long";
+    const pnl = Number.parseFloat(pnlRaw.replace(/[^0-9.+-]/g, "")) || 0;
+    return [{ id: r.id, symbol: symbol || "Trade", side, pnl, date, account: "Journal" }];
+  });
 }
 function blankRow(columns: Column[]): Row {
   const cells: Record<string, Cell> = {};
@@ -170,7 +193,10 @@ function parseData(raw: unknown): TableData {
   if (typeof raw === "string" && raw.length > 0) {
     try {
       const d = JSON.parse(raw) as TableData;
-      if (Array.isArray(d.columns) && Array.isArray(d.rows)) return d;
+      if (Array.isArray(d.columns) && Array.isArray(d.rows)) {
+        if (!d.id) d.id = uid();
+        return d;
+      }
     } catch {
       /* fall through to default */
     }
@@ -570,7 +596,13 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   const commit = (next: TableData) => {
     setData(next);
     updateAttributes({ data: JSON.stringify(next) });
+    if (next.addLabel === "trade" && next.id) setTableTrades(next.id, mapTrades(next));
   };
+  // publish this trade table's rows to the store on mount, so "Link to trade" sees them
+  useEffect(() => {
+    if (data.addLabel === "trade" && data.id) setTableTrades(data.id, mapTrades(data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const setCell = (rowId: string, colId: string, val: Cell) =>
     commit({
       ...data,

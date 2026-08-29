@@ -45,6 +45,7 @@ import { ListExit } from "../extensions/listExit";
 import { TaskListVariant } from "../extensions/taskListVariant";
 import { SlashCommand } from "../slash/SlashCommand";
 import { MOCK_TRADES } from "../trades";
+import { allTrades } from "../tradeStore";
 
 export interface Note {
   id: string;
@@ -436,7 +437,7 @@ function NoteEditor({
       IconNode,
       Banner,
       PageLink.configure({ getEntries: () => [], onOpen: () => {} }),
-      TradeLink.configure({ getTrades: () => MOCK_TRADES, onOpen: () => {} }),
+      TradeLink.configure({ getTrades: () => (allTrades().length ? allTrades() : MOCK_TRADES), onOpen: () => {} }),
       ListExit,
       SlashCommand,
     ],
