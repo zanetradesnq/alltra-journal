@@ -2260,8 +2260,13 @@ export default function App() {
   // track the block under the cursor → position the ⠿ hover handle.
   // targets the most specific block: each list ITEM (not the whole list), each
   // top-level paragraph/heading, or a callout as a whole.
+  // block drag-to-reorder: a blue insertion line + the in-flight drag flags
+  const [dragLine, setDragLine] = useState<{ left: number; width: number; top: number } | null>(null);
+  const draggingRef = useRef(false); // true while a block is being dragged
+  const justDraggedRef = useRef(false); // suppresses the grip's click-to-open after a drag
+
   const onPaperMove = (e: React.MouseEvent) => {
-    if (!editor || blockMenu) return;
+    if (!editor || blockMenu || draggingRef.current) return;
     const found = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     if (!found) return; // keep the current handle (avoids flicker over the grip)
     const $pos = editor.state.doc.resolve(found.pos);
@@ -2308,6 +2313,89 @@ export default function App() {
     // moving onto the grip itself shouldn't dismiss it
     if (rt && blockHandleElRef.current?.contains(rt)) return;
     setBlockHandle(null);
+  };
+
+  // ── block drag-to-reorder ─────────────────────────────────────────────────
+  // Find the top-level block gap nearest a Y coord: the position to insert at +
+  // where to paint the blue line (top of the target block, or the doc's bottom).
+  const computeDrop = (clientY: number): { pos: number; lineTop: number; left: number; width: number } | null => {
+    if (!editor) return null;
+    const view = editor.view;
+    const doc = view.state.doc;
+    const pmRect = (view.dom as HTMLElement).getBoundingClientRect();
+    let pos = doc.content.size;
+    let lineTop = pmRect.bottom - 1;
+    let lastBottom = pmRect.top;
+    let done = false;
+    doc.forEach((_node, offset) => {
+      if (done) return;
+      const dom = view.nodeDOM(offset);
+      if (!(dom instanceof HTMLElement)) return;
+      const r = dom.getBoundingClientRect();
+      if (clientY < (r.top + r.bottom) / 2) {
+        pos = offset;
+        lineTop = r.top - 1;
+        done = true;
+      } else {
+        lastBottom = r.bottom;
+      }
+    });
+    if (!done) lineTop = lastBottom - 1;
+    return { pos, lineTop, left: pmRect.left, width: pmRect.width };
+  };
+  // Move the block at `from` to the top-level position `to` (delete + reinsert,
+  // mapping the target through the deletion so it lands where the line showed).
+  const moveBlock = (from: number, to: number) => {
+    if (!editor) return;
+    const view = editor.view;
+    const node = view.state.doc.nodeAt(from);
+    if (!node) return;
+    const size = node.nodeSize;
+    if (to > from && to < from + size) return; // dropped onto itself → no-op
+    let tr = view.state.tr.delete(from, from + size);
+    const at = tr.mapping.map(to);
+    tr = tr.insert(at, node);
+    view.dispatch(tr);
+    view.focus();
+    schedulePersist();
+  };
+  const startBlockDrag = (e: React.PointerEvent) => {
+    if (!blockHandle) return;
+    e.preventDefault();
+    const from = blockHandle.pos;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+    let dropPos: number | null = null;
+    const onMove = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      if (!moved) {
+        moved = true;
+        draggingRef.current = true;
+        document.body.style.cursor = "grabbing";
+        document.body.style.userSelect = "none";
+      }
+      const d = computeDrop(ev.clientY);
+      if (d) {
+        dropPos = d.pos;
+        setDragLine({ left: d.left, width: d.width, top: d.lineTop });
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setDragLine(null);
+      draggingRef.current = false;
+      if (moved) {
+        justDraggedRef.current = true; // suppress the grip's click-to-open
+        if (dropPos !== null) moveBlock(from, dropPos);
+        setBlockHandle(null);
+      }
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   };
 
   // Selecting/highlighting text no longer opens any menu (nothing shows on
@@ -2886,6 +2974,7 @@ export default function App() {
                               // opening the menu — otherwise selection-dependent
                               // actions (Ask AI, etc.) see an empty selection
                               onMouseDown={(e) => e.preventDefault()}
+                              onPointerDown={startBlockDrag}
                               style={{
                                 position: "fixed",
                                 top: blockHandle.top - 12, // grip is 24px → center on the line
@@ -2897,19 +2986,43 @@ export default function App() {
                                 if (!rt || !paperRef.current?.contains(rt))
                                   setBlockHandle(null);
                               }}
-                              onClick={() =>
+                              onClick={() => {
+                                // a drag just ended → swallow this click (don't open the menu)
+                                if (justDraggedRef.current) {
+                                  justDraggedRef.current = false;
+                                  return;
+                                }
                                 setBlockMenu({
                                   x: blockHandle.left - 30,
                                   top: blockHandle.top,
                                   bottom: blockHandle.top + 24,
                                   pos: blockHandle.pos,
-                                })
-                              }
-                              title="Block actions"
-                              className="grid h-6 w-6 place-items-center rounded-md text-text-faint transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+                                });
+                              }}
+                              title="Drag to move · click for actions"
+                              className="grid h-6 w-6 cursor-grab place-items-center rounded-md text-text-faint transition-colors hover:bg-[var(--hover-overlay)] hover:text-text active:cursor-grabbing"
                             >
                               <GripVertical size={15} />
                             </button>,
+                            document.body
+                          )}
+                        {/* block-reorder drop indicator — a blue insertion line */}
+                        {dragLine &&
+                          createPortal(
+                            <div
+                              style={{
+                                position: "fixed",
+                                left: dragLine.left,
+                                top: dragLine.top,
+                                width: dragLine.width,
+                                height: 2,
+                                background: "var(--alltra-brand)",
+                                borderRadius: 2,
+                                boxShadow: "0 0 8px rgba(var(--alltra-brand-rgb), 0.7)",
+                                zIndex: 60,
+                                pointerEvents: "none",
+                              }}
+                            />,
                             document.body
                           )}
                         <span className="pointer-events-none absolute bottom-3.5 right-6 text-[12px] font-medium tabular-nums text-text-faint">
