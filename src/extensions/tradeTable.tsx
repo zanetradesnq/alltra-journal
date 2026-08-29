@@ -15,7 +15,18 @@ import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, ImagePlus, Link2, Trash2, GripVertical } from "lucide-react";
+import {
+  Plus,
+  X,
+  ImagePlus,
+  Link2,
+  Trash2,
+  GripVertical,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 /* ── model ─────────────────────────────────────────────────────────────────── */
 type ColType = "text" | "num" | "date" | "select" | "url" | "img";
@@ -52,7 +63,17 @@ const TAG: Record<string, { bg: string; fg: string }> = {
   blue: { bg: "rgba(10,110,240,0.18)", fg: "#3b82f6" },
   orange: { bg: "rgba(255,149,0,0.16)", fg: "#d9730d" },
 };
+const TAG_KEYS = Object.keys(TAG);
 const uid = (): string => Math.random().toString(36).slice(2, 9);
+
+const COL_TYPES: { type: ColType; label: string }[] = [
+  { type: "text", label: "Text" },
+  { type: "num", label: "Number" },
+  { type: "date", label: "Date" },
+  { type: "select", label: "Tag" },
+  { type: "url", label: "Link" },
+  { type: "img", label: "Image" },
+];
 
 /* ── default schema — Aayan's MFF-Phase-1 trade log ────────────────────────────── */
 function defaultData(): TableData {
@@ -291,10 +312,12 @@ function SelectCell({
   value,
   options,
   onChange,
+  onAddOption,
 }: {
   value: string;
   options: SelectOpt[];
   onChange: (v: string) => void;
+  onAddOption?: (label: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -353,10 +376,96 @@ function SelectCell({
                 Clear
               </button>
             )}
+            {onAddOption && (
+              <button
+                type="button"
+                className="tt-pop-row tt-pop-add"
+                onClick={() => {
+                  const label = window.prompt("New tag label")?.trim();
+                  if (label) onAddOption(label);
+                  setOpen(false);
+                }}
+              >
+                <Plus size={12} /> New option
+              </button>
+            )}
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+/* ── the column header menu — rename · retype · move · delete ──────────────────── */
+function ColumnMenu({
+  col,
+  canDelete,
+  onRename,
+  onType,
+  onMove,
+  onDelete,
+  onClose,
+  anchor,
+}: {
+  col: Column;
+  canDelete: boolean;
+  onRename: (name: string) => void;
+  onType: (type: ColType) => void;
+  onMove: (dir: -1 | 1) => void;
+  onDelete: () => void;
+  onClose: () => void;
+  anchor: { x: number; y: number };
+}) {
+  const [name, setName] = useState(col.name);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest?.("[data-tt-colmenu]")) onClose();
+    };
+    document.addEventListener("mousedown", close, true);
+    return () => document.removeEventListener("mousedown", close, true);
+  }, [onClose]);
+  return createPortal(
+    <div data-tt-colmenu className="tt-colmenu" style={{ left: anchor.x, top: anchor.y }}>
+      <input
+        className="tt-colmenu-name"
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => onRename(name.trim() || col.name)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            onRename(name.trim() || col.name);
+            onClose();
+          }
+        }}
+      />
+      <div className="tt-colmenu-types">
+        {COL_TYPES.map((t) => (
+          <button
+            key={t.type}
+            type="button"
+            className={"tt-colmenu-type" + (col.type === t.type ? " tt-on" : "")}
+            onClick={() => onType(t.type)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="tt-colmenu-sep" />
+      <button type="button" className="tt-colmenu-row" onClick={() => onMove(-1)}>
+        <ChevronLeft size={14} /> Move left
+      </button>
+      <button type="button" className="tt-colmenu-row" onClick={() => onMove(1)}>
+        <ChevronRight size={14} /> Move right
+      </button>
+      {canDelete && (
+        <button type="button" className="tt-colmenu-row tt-colmenu-del" onClick={onDelete}>
+          <Trash2 size={13} /> Delete column
+        </button>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -455,6 +564,9 @@ function TextCell({
 /* ── the node view ─────────────────────────────────────────────────────────────── */
 function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   const [data, setData] = useState<TableData>(() => parseData(node.attrs.data));
+  const [expanded, setExpanded] = useState(false);
+  const [colMenu, setColMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+
   const commit = (next: TableData) => {
     setData(next);
     updateAttributes({ data: JSON.stringify(next) });
@@ -467,23 +579,105 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   const addRow = () => commit({ ...data, rows: [...data.rows, blankRow(data.columns)] });
   const delRow = (rowId: string) => commit({ ...data, rows: data.rows.filter((r) => r.id !== rowId) });
 
+  // ── column operations (add · rename · retype · move · delete · add tag option) ──
+  const addColumn = () => {
+    const col: Column = { id: uid(), name: "New column", type: "text", width: 150 };
+    commit({
+      ...data,
+      columns: [...data.columns, col],
+      rows: data.rows.map((r) => ({ ...r, cells: { ...r.cells, [col.id]: "" } })),
+    });
+  };
+  const renameColumn = (id: string, name: string) =>
+    commit({ ...data, columns: data.columns.map((c) => (c.id === id ? { ...c, name } : c)) });
+  const retypeColumn = (id: string, type: ColType) =>
+    commit({
+      ...data,
+      columns: data.columns.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              type,
+              sum: type === "num" ? c.sum : undefined,
+              options:
+                type === "select"
+                  ? c.options?.length
+                    ? c.options
+                    : [{ label: "Option 1", color: "green" }]
+                  : c.options,
+            }
+          : c,
+      ),
+      rows:
+        type === "img"
+          ? data.rows.map((r) => ({
+              ...r,
+              cells: { ...r.cells, [id]: Array.isArray(r.cells[id]) ? r.cells[id] : [] },
+            }))
+          : data.rows,
+    });
+  const delColumn = (id: string) => {
+    if (data.columns.length <= 1) return;
+    commit({
+      ...data,
+      columns: data.columns.filter((c) => c.id !== id),
+      rows: data.rows.map((r) => {
+        const cells = { ...r.cells };
+        delete cells[id];
+        return { ...r, cells };
+      }),
+    });
+  };
+  const moveColumn = (id: string, dir: -1 | 1) => {
+    const i = data.columns.findIndex((c) => c.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= data.columns.length) return;
+    const cols = [...data.columns];
+    [cols[i], cols[j]] = [cols[j], cols[i]];
+    commit({ ...data, columns: cols });
+  };
+  const addOptionAndSelect = (rowId: string, colId: string, label: string) => {
+    const col = data.columns.find((c) => c.id === colId);
+    if (!col) return;
+    const used = new Set((col.options ?? []).map((o) => o.color));
+    const color = TAG_KEYS.find((k) => !used.has(k)) ?? TAG_KEYS[(col.options?.length ?? 0) % TAG_KEYS.length];
+    commit({
+      ...data,
+      columns: data.columns.map((c) => (c.id === colId ? { ...c, options: [...(c.options ?? []), { label, color }] } : c)),
+      rows: data.rows.map((r) => (r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: label } } : r)),
+    });
+  };
+
   const num = (v: Cell): number => {
     const n = Number.parseFloat(String(v ?? "").replace(/[^0-9.+-]/g, ""));
     return Number.isFinite(n) ? n : 0;
   };
 
-  return (
-    <NodeViewWrapper className="tt-wrap" contentEditable={false}>
+  const table = (
+    <>
       <div className="tt-scroll">
         <table className="tt">
           <thead>
             <tr>
               <th className="tt-th tt-th-grip" />
               {data.columns.map((c) => (
-                <th key={c.id} className="tt-th" style={{ minWidth: c.width, width: c.width }}>
+                <th
+                  key={c.id}
+                  className="tt-th tt-th-btn"
+                  style={{ minWidth: c.width, width: c.width }}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setColMenu({ id: c.id, x: r.left, y: r.bottom + 4 });
+                  }}
+                >
                   {c.name}
                 </th>
               ))}
+              <th className="tt-th tt-th-add">
+                <button type="button" className="tt-addcol" title="Add column" onClick={addColumn}>
+                  <Plus size={14} />
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -502,6 +696,7 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
                         value={String(r.cells[c.id] ?? "")}
                         options={c.options ?? []}
                         onChange={(v) => setCell(r.id, c.id, v)}
+                        onAddOption={(label) => addOptionAndSelect(r.id, c.id, label)}
                       />
                     ) : c.type === "img" ? (
                       <ImageCell
@@ -509,14 +704,11 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
                         onChange={(v) => setCell(r.id, c.id, v)}
                       />
                     ) : (
-                      <TextCell
-                        value={String(r.cells[c.id] ?? "")}
-                        type={c.type}
-                        onCommit={(v) => setCell(r.id, c.id, v)}
-                      />
+                      <TextCell value={String(r.cells[c.id] ?? "")} type={c.type} onCommit={(v) => setCell(r.id, c.id, v)} />
                     )}
                   </td>
                 ))}
+                <td className="tt-td tt-td-add" />
               </tr>
             ))}
           </tbody>
@@ -528,12 +720,11 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
                   {i === 0 ? (
                     <span className="tt-count">Count {data.rows.length}</span>
                   ) : c.sum ? (
-                    <span className="tt-sum">
-                      Σ {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
-                    </span>
+                    <span className="tt-sum">Σ {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}</span>
                   ) : null}
                 </td>
               ))}
+              <td className="tt-td tt-td-add" />
             </tr>
           </tfoot>
         </table>
@@ -541,6 +732,52 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
       <button type="button" className="tt-addrow" onClick={addRow}>
         <Plus size={13} /> New {data.addLabel ?? "row"}
       </button>
+    </>
+  );
+
+  const col = colMenu ? data.columns.find((c) => c.id === colMenu.id) : undefined;
+
+  return (
+    <NodeViewWrapper className="tt-wrap" contentEditable={false}>
+      <div className="tt-bar">
+        <button type="button" className="tt-expand" title="Open full screen" onClick={() => setExpanded(true)}>
+          <Maximize2 size={13} /> Expand
+        </button>
+      </div>
+      {!expanded && table}
+      {colMenu && col && (
+        <ColumnMenu
+          col={col}
+          canDelete={data.columns.length > 1}
+          anchor={{ x: colMenu.x, y: colMenu.y }}
+          onRename={(name) => renameColumn(col.id, name)}
+          onType={(type) => retypeColumn(col.id, type)}
+          onMove={(dir) => {
+            moveColumn(col.id, dir);
+            setColMenu(null);
+          }}
+          onDelete={() => {
+            delColumn(col.id);
+            setColMenu(null);
+          }}
+          onClose={() => setColMenu(null)}
+        />
+      )}
+      {expanded &&
+        createPortal(
+          <div className="tt-overlay">
+            <div className="tt-overlay-head">
+              <span className="tt-overlay-title">
+                {data.addLabel === "trade" ? "Trade log" : "Table"} · {data.rows.length} rows
+              </span>
+              <button type="button" className="tt-overlay-close" onClick={() => setExpanded(false)}>
+                <Minimize2 size={14} /> Close
+              </button>
+            </div>
+            <div className="tt-overlay-body">{table}</div>
+          </div>,
+          document.body,
+        )}
     </NodeViewWrapper>
   );
 }
