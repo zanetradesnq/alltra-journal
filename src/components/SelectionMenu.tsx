@@ -105,4 +105,3 @@ export function SelectionMenu({
   );
 }
 
-export default SelectionMenu;

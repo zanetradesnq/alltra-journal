@@ -9,7 +9,7 @@ import { ICON_NAMES, ICON_SET, ICON_COLORS, iconColor } from "../iconSet";
 
 export type IconSel = { glyph?: string; icon?: string; color?: string };
 
-export const EMOJI_GROUPS: { label: string; items: string[] }[] = [
+const EMOJI_GROUPS: { label: string; items: string[] }[] = [
   {
     label: "Smileys",
     items: ["😀", "😄", "😁", "😅", "😂", "🙂", "😉", "😊", "😍", "😎", "🤔", "😴", "😭", "😡", "🥳", "🤯"],
@@ -133,4 +133,3 @@ export function EmojiIconPicker({ onPick }: { onPick: (sel: IconSel) => void }) 
   );
 }
 
-export default EmojiIconPicker;

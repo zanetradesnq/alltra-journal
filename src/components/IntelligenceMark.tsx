@@ -35,4 +35,3 @@ export function IntelligenceMark({
   );
 }
 
-export default IntelligenceMark;

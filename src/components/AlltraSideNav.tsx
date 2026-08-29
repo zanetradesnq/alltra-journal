@@ -535,4 +535,3 @@ export function AlltraSideNav({
   );
 }
 
-export default AlltraSideNav;

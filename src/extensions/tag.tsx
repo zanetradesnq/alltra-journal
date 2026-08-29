@@ -20,7 +20,7 @@ declare module "@tiptap/core" {
   }
 }
 
-export const TAG_COLORS = [
+const TAG_COLORS = [
   "green",
   "blue",
   "purple",

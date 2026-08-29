@@ -337,4 +337,3 @@ export function JournalQualityWidget({
   );
 }
 
-export default JournalQualityWidget;

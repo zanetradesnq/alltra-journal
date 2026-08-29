@@ -296,4 +296,3 @@ export function JournalCalendarDayTile({
   );
 }
 
-export default JournalCalendarDayTile;

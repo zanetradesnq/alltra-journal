@@ -276,4 +276,3 @@ export function TodaysJournalWidget({
   );
 }
 
-export default TodaysJournalWidget;

@@ -8,6 +8,10 @@ dist-ssr/
 # typescript incremental build cache
 *.tsbuildinfo
 
+# stray compiled config artifacts (source is vite.config.ts)
+vite.config.js
+vite.config.d.ts
+
 # local env / secrets
 .env
 .env.*

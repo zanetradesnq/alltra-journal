@@ -15,7 +15,6 @@ const client = apiKey
   ? new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
   : null;
 
-export const AI_ENABLED = client !== null;
 
 export type AiAction = "translate" | "grammar" | "positive" | "punchier";
 

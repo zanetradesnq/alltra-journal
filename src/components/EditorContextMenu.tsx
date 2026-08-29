@@ -579,4 +579,3 @@ export function EditorContextMenu({ editor }: { editor: Editor | null }) {
   );
 }
 
-export default EditorContextMenu;

@@ -16,7 +16,7 @@ const OPTIMIZER_PATHS = {
   p3: "M2.44074 12.1948L7.05324 9.11984C7.30074 8.95484 7.70574 8.95484 7.95324 9.11984L12.5657 12.1948C13.7882 13.0123 13.5857 13.6798 12.1157 13.6798H2.88324C1.42074 13.6723 1.21824 13.0048 2.44074 12.1948Z",
 };
 
-export function TrackerIcon({ size }: { size: number }) {
+function TrackerIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 13.9988 13.971" fill="none" style={{ display: "block" }}>
       <path d={TRACKER_PATHS.p1} fill="url(#tr_g0)" />
@@ -33,7 +33,7 @@ export function TrackerIcon({ size }: { size: number }) {
   );
 }
 
-export function OptimizerIcon({ size }: { size: number }) {
+function OptimizerIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14.9983 13.6798" fill="none" style={{ display: "block" }}>
       <path d={OPTIMIZER_PATHS.p1} fill="url(#op_g0)" />
@@ -54,7 +54,7 @@ export function OptimizerIcon({ size }: { size: number }) {
   );
 }
 
-export function ResourcesIcon({ size }: { size: number }) {
+function ResourcesIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14 17" fill="none" style={{ display: "block" }}>
       <path d="M7 0C7 0 14 6.443 14 10.2C14 12.0035 13.2625 13.7331 11.9497 15.0083C10.637 16.2836 8.85652 17 7 17C5.14348 17 3.36301 16.2836 2.05025 15.0083C0.737498 13.7331 0 12.0035 0 10.2C0 8.925 0.79625 7.3525 1.855 5.8225C2.03213 6.41248 2.42263 6.92048 2.95466 7.25301C3.48669 7.58555 4.12444 7.72024 4.75058 7.63232C5.37671 7.54439 5.94909 7.23976 6.36239 6.77447C6.7757 6.30919 7.00212 5.71456 7 5.1V0ZM5.25 0C4.55381 0 3.88613 0.26866 3.39384 0.746878C2.90156 1.2251 2.625 1.8737 2.625 2.55C2.625 3.2263 2.90156 3.8749 3.39384 4.35312C3.88613 4.83134 4.55381 5.1 5.25 5.1V0Z" fill="url(#res_g0)" />
@@ -67,7 +67,7 @@ export function ResourcesIcon({ size }: { size: number }) {
   );
 }
 
-export function AIPanelIcon({ size }: { size: number }) {
+function AIPanelIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ display: "block" }}>
       <path d="M12.4444 0C11.8364 2.19733 11.0533 2.948 8.88889 3.55556C11.0533 4.16311 11.8364 4.91378 12.4444 7.11111C13.0524 4.91378 13.8356 4.16311 16 3.55556C13.8356 2.948 13.0524 2.19733 12.4444 0ZM6.22222 3.55556C5.15778 7.40044 3.78844 8.71467 0 9.77778C3.78844 10.8409 5.15778 12.1551 6.22222 16C7.28667 12.1551 8.656 10.8409 12.4444 9.77778C8.656 8.71467 7.28667 7.40044 6.22222 3.55556Z" fill="url(#ai_g0)" />
@@ -80,7 +80,7 @@ export function AIPanelIcon({ size }: { size: number }) {
   );
 }
 
-export function AffiliateIcon({ size }: { size: number }) {
+function AffiliateIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ display: "block" }}>
       <line x1="5.85" y1="9.05" x2="10.15" y2="11.95" stroke="url(#aff_g0)" strokeWidth="1.7" strokeLinecap="round" />

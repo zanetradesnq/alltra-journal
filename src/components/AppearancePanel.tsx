@@ -336,4 +336,3 @@ export function AppearancePanel({
   );
 }
 
-export default AppearancePanel;

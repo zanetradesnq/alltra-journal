@@ -477,4 +477,3 @@ function Flyout({
 }
 
 /* ── emoji / icon picker ─────────────────────────────────────────────────── */
-export default BlockMenu;

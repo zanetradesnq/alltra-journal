@@ -168,4 +168,3 @@ export function TemplateGallery({
   );
 }
 
-export default TemplateGallery;

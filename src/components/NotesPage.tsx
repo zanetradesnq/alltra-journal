@@ -655,4 +655,3 @@ function Composer({
   );
 }
 
-export default NotesPage;

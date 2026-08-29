@@ -127,4 +127,3 @@ export function TableMenu({ editor }: { editor: Editor | null }) {
   );
 }
 
-export default TableMenu;

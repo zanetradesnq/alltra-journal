@@ -164,4 +164,3 @@ function Dot({ d }: { d: number }) {
   );
 }
 
-export default NikkiPanel;
