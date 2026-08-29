@@ -326,11 +326,42 @@ function checklistData(): TableData {
   );
 }
 
+/** Mistakes / filter — log recurring errors, tag the cause, capture the fix. */
+function mistakesData(): TableData {
+  return makeTable(
+    [
+      ["Date", "date", { width: 130 }],
+      ["Mistake", "text", { width: 260 }],
+      [
+        "Category",
+        "select",
+        {
+          width: 130,
+          options: [
+            { label: "Discipline", color: "red" },
+            { label: "Risk", color: "orange" },
+            { label: "Entry", color: "blue" },
+            { label: "Exit", color: "purple" },
+            { label: "Psychology", color: "gray" },
+          ],
+        },
+      ],
+      ["Fix / lesson", "text", { width: 300 }],
+    ],
+    [
+      ["", "Moved my stop loss further from entry", "Discipline", "Set the stop before entry — never widen it"],
+      ["", "Entered before the setup confirmed", "Entry", "Wait for the candle to close"],
+    ],
+    "mistake",
+  );
+}
+
 const PRESETS: Record<string, () => TableData> = {
   trade: defaultData,
   survey: surveyData,
   weekly: weeklyData,
   checklist: checklistData,
+  mistakes: mistakesData,
 };
 
 /* ── a colour-tag select cell ──────────────────────────────────────────────────── */

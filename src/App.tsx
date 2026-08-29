@@ -29,6 +29,7 @@ import { Banner } from "./extensions/banner";
 import { PageLink, type PageLinkEntry } from "./extensions/pageLink";
 import { TradeLink } from "./extensions/tradeLink";
 import { TradeTable } from "./extensions/tradeTable";
+import { JournalStats } from "./extensions/journalStats";
 import { MOCK_TRADES } from "./trades";
 import { allTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
@@ -1655,6 +1656,7 @@ export default function App() {
       Toggle,
       Tag,
       TradeTable,
+      JournalStats,
       IconNode,
       Banner,
       // always keep a typeable empty paragraph after the last block (atom blocks

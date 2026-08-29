@@ -358,6 +358,48 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (e, r) => e.chain().focus().deleteRange(r).insertTradeTable("checklist").run(),
   },
 
+  // ── Performance (live stats from your logged trades + a mistakes log) ──────
+  {
+    id: "stats-summary",
+    title: "Performance stats",
+    description: "Live win rate, net P&L & profit factor from your logged trades",
+    aliases: ["statistics", "stats", "performance", "summary", "metrics", "kpi", "win rate"],
+    group: "Performance",
+    icon: TradeLinkIcon,
+    pinKind: "insert",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertJournalStats("summary").run(),
+  },
+  {
+    id: "stats-monthly",
+    title: "Monthly performance",
+    description: "Net P&L, trades & win rate broken down by month",
+    aliases: ["monthly", "month", "breakdown", "by month", "monthly performance"],
+    group: "Performance",
+    icon: DateIcon,
+    pinKind: "insert",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertJournalStats("monthly").run(),
+  },
+  {
+    id: "stats-winloss",
+    title: "Win / Loss / BE",
+    description: "A win–loss–breakeven split bar from your trades",
+    aliases: ["winloss", "win loss", "wl", "breakeven", "be", "split", "win rate bar"],
+    group: "Performance",
+    icon: TableColumnsIcon,
+    pinKind: "insert",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertJournalStats("winloss").run(),
+  },
+  {
+    id: "mistakes-table",
+    title: "Mistakes / filter",
+    description: "Log recurring mistakes, tag the cause & capture the fix",
+    aliases: ["mistakes", "errors", "filter", "leaks", "lessons", "mistake log"],
+    group: "Performance",
+    icon: TodoIcon,
+    pinKind: "insert",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertTradeTable("mistakes").run(),
+  },
+
   // ── Align ─────────────────────────────────────────────────────────────
   {
     id: "alignment",
