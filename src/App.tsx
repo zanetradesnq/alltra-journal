@@ -3026,7 +3026,7 @@ export default function App() {
               <div className="flex gap-2.5">
                 {/* left: font card + bold/italic/underline */}
                 <div className="flex flex-1 flex-col gap-2.5">
-                  <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex flex-col rounded-2xl bg-[var(--hover-overlay)] p-4">
                     <span
                       className="text-3xl font-semibold text-text"
                       style={{ fontFamily: FONTS[displayFontIdx].value }}
@@ -3037,7 +3037,7 @@ export default function App() {
                     <span className="text-[12px] font-medium text-text-muted">
                       Customize font
                     </span>
-                    <div className="relative mt-2 flex items-center justify-between rounded-lg border border-border bg-card-hover px-3 py-2">
+                    <div className="relative mt-1 flex items-center justify-between rounded-lg px-2 py-2 transition-colors hover:bg-[var(--hover-overlay-medium)]">
                       <span className="text-[13px] text-text">
                         {FONTS[displayFontIdx].label}
                       </span>
