@@ -3117,14 +3117,7 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div
-              className={
-                "flex flex-1 overflow-hidden bg-[var(--panel-bg)] " +
-                // banner entry → flush so the banner reaches the edges; otherwise the
-                // floating card keeps its breathing room. The sheet stays rounded both ways.
-                (focusMode ? "gap-6 p-0" : hasBanner ? "gap-0 p-0" : "gap-6 p-6")
-              }
-            >
+            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
