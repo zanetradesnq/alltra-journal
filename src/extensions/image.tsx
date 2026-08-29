@@ -25,6 +25,10 @@ function ImageView({
   const width = (node.attrs.width as number | null) ?? null;
   const boxRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  // teardown for an in-flight resize drag; runs on unmount too, so deleting the
+  // image mid-drag doesn't leak the document pointermove/pointerup listeners.
+  const cleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => cleanupRef.current?.(), []);
 
   // First load with no saved width → spawn at min(natural, cap, container).
   const settleSize = () => {
@@ -61,13 +65,18 @@ function ImageView({
       );
       if (box) box.style.width = `${next}px`; // live — no transaction per move
     };
-    const onUp = () => {
+    const teardown = () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      cleanupRef.current = null;
+    };
+    const onUp = () => {
+      teardown();
       if (box) updateAttributes({ width: Math.round(box.offsetWidth) }); // commit once
     };
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
+    cleanupRef.current = teardown; // let an unmount mid-drag clean these up
   };
 
   const handle = (side: "left" | "right") => (

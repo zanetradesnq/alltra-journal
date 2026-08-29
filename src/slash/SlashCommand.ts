@@ -79,9 +79,13 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
         render: () => {
           let component: ReactRenderer<SlashCommandMenuHandle> | null = null;
           let popup: HTMLDivElement | null = null;
+          // once Escape dismisses the menu, keep it dismissed for this "/" session —
+          // otherwise the next keystroke's onUpdate re-shows the popup.
+          let escaped = false;
 
           return {
             onStart: (props) => {
+              escaped = false;
               component = new ReactRenderer(SlashCommandMenu, {
                 props: withFavorites(props),
                 editor: props.editor,
@@ -95,13 +99,14 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
             },
             onUpdate: (props) => {
               component?.updateProps(withFavorites(props));
-              if (popup) {
+              if (popup && !escaped) {
                 popup.style.display = "";
                 positionPopup(popup, props.clientRect);
               }
             },
             onKeyDown: (props) => {
               if (props.event.key === "Escape") {
+                escaped = true;
                 if (popup) popup.style.display = "none";
                 return true;
               }

@@ -1815,7 +1815,8 @@ export default function App() {
       i < page ? page - 1 : Math.min(page, pagesRef.current.length - 1);
     setDir("prev");
     if (target === page) {
-      editor?.commands.setContent(pagesRef.current[target] ?? "", false);    } else {
+      editor?.commands.setContent(pagesRef.current[target] ?? "", false);
+    } else {
       setPage(target);
     }
     schedulePersist();
@@ -1826,7 +1827,8 @@ export default function App() {
     pagesRef.current[i] = setEntryTitle(pagesRef.current[i] ?? "", clean);
     setTitles(pagesRef.current.map(deriveTitle));
     if (i === page) {
-      editor?.commands.setContent(pagesRef.current[i] ?? "", false);    }
+      editor?.commands.setContent(pagesRef.current[i] ?? "", false);
+    }
     schedulePersist();
   };
 
@@ -1859,7 +1861,8 @@ export default function App() {
   // swap the editor's content on every page flip + replay the swipe animation
   useLayoutEffect(() => {
     if (!editor) return;
-    editor.commands.setContent(pagesRef.current[page] ?? "", false);    const el = paperRef.current;
+    editor.commands.setContent(pagesRef.current[page] ?? "", false);
+    const el = paperRef.current;
     if (el) {
       el.classList.remove("page-next", "page-prev");
       void el.offsetWidth; // force reflow so the animation replays
