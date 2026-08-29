@@ -1,0 +1,3288 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { EditorContent, useEditor } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
+import TurndownService from "turndown";
+import StarterKit from "@tiptap/starter-kit";
+import UnderlineExt from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
+import { ResizableImage } from "./extensions/image";
+import Placeholder from "@tiptap/extension-placeholder";
+import TextStyle from "@tiptap/extension-text-style";
+import FontFamily from "@tiptap/extension-font-family";
+import TaskItem from "@tiptap/extension-task-item";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
+import { FontSize } from "./extensions/fontSize";
+import { LetterSpacing } from "./extensions/letterSpacing";
+import { Callout } from "./extensions/callout";
+import { Toggle } from "./extensions/toggle";
+import { TextColor, BgColor, BlockStyle } from "./extensions/color";
+import { Tag } from "./extensions/tag";
+import { IconNode } from "./extensions/iconNode";
+import { Banner } from "./extensions/banner";
+import { PageLink, type PageLinkEntry } from "./extensions/pageLink";
+import { TradeLink } from "./extensions/tradeLink";
+import { MOCK_TRADES } from "./trades";
+import { ListExit } from "./extensions/listExit";
+import { TaskListVariant } from "./extensions/taskListVariant";
+import { SlashCommand } from "./slash/SlashCommand";
+import {
+  SLASH_COMMANDS,
+  runFavoriteCommand,
+  PANEL_COMMAND_IDS,
+} from "./slash/commands";
+import { aiTransform, type AiAction } from "./ai/rewrite";
+import {  ArrowLeft,
+  ArrowRight,
+  Bold,
+  CalendarDays,
+  Check,
+  Palette,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  Columns3,
+  Copy,
+  Download,
+  FileText,
+  Printer,
+  GripVertical,  Italic,
+  LayoutTemplate,
+  Loader2,  Pencil,
+  Plus,
+  PanelLeft,
+  PanelRight,
+  RotateCcw,
+  Sun,
+  Trash2,
+  X,
+  Rows3,
+  Search,  Share2,  Sparkles,
+  Star,
+  StickyNote,
+  MoreVertical,  Type,
+  Underline,} from "lucide-react";
+import { AppSidebar, APP_SIDEBAR_WIDTH } from "./components/AppSidebar";
+import { DailyPerformance } from "./components/DailyPerformance";
+import {
+  JournalCalendarWidget,
+  type JournalDayData,
+} from "./components/JournalCalendarWidget";
+import { TodaysJournalWidget } from "./components/TodaysJournalWidget";
+import { JournalQualityWidget } from "./components/JournalQualityWidget";
+import { BlockMenu } from "./components/BlockMenu";
+import { NotesPage } from "./components/NotesPage";
+import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
+import { TemplateGallery } from "./components/TemplateGallery";
+import { TableMenu } from "./components/TableMenu";
+import {
+  AppearancePanel,
+  type ThemeName,
+  type AccentName,
+} from "./components/AppearancePanel";
+import {
+  AlltraSideNav,
+  RAIL_WIDTH_EXPANDED,
+  RAIL_WIDTH_COLLAPSED,
+} from "./components/AlltraSideNav";
+import { NikkiPanel } from "./components/NikkiPanel";
+import { TEMPLATES, type JournalTemplate } from "./templates";
+
+/* ── config ──────────────────────────────────────────────────────────────── */
+
+const FONTS = [
+  { label: "Inter", value: '"Inter", system-ui, sans-serif' },
+  { label: "Georgia", value: 'Georgia, "Times New Roman", serif' },
+  { label: "Mono", value: 'ui-monospace, "SF Mono", Consolas, monospace' },
+];
+
+// Size  → font-size 13px..22px   Spacing → line-height 1.4..2.2
+const sizePx = (v: number) => `${(13 + v * 9).toFixed(1)}px`;
+const lineHeight = (v: number) => 1.4 + v * 0.8;
+// letter spacing (tracking): v 0→1 maps -0.04em (tight) … +0.12em (wide);
+// v 0.25 = 0em. Default 0.2 ≈ -0.01em (Alltra's standard tight tracking).
+const trackingEm = (v: number) => `${((v - 0.25) * 0.16).toFixed(3)}em`;
+
+// journal entries — each is one "page" in the book. Edits persist while flipping.
+const PAGES: string[] = [
+  `<h1>The New Beginning..</h1>
+<h2>Introduction</h2>
+<p>A quick fox slipped across the dewy field, <strong>leaving faint tracks</strong> in the early light as the world around it slowly stirred awake. The air smelled clean, carrying with it the soft hush of last night's rain, and the hum of insects rose like an orchestra tuning up for the day.</p>
+<p>The fox paused beside a shallow pool, its <strong>reflection trembling</strong> with every ripple, then darted on as if chasing something only it could see. The scene was quiet yet alive, a small reminder that even the simplest movements could stitch together the <strong>rhythm of a morning.</strong></p>
+<h2>Daily Routine</h2>
+<p>The fox's day is <strong>filled with small yet meaningful</strong> moments. From hunting for food to resting in the shade, each habit keeps it alert and thriving.</p>
+<ul><li>Roaming the meadow at first light</li><li>Hunting along the quiet hedgerows</li><li>Resting beneath the old oak</li><li>Staying watchful as the dusk settles</li></ul>`,
+  `<h1>Morning pages</h1>
+<p>Three pages, longhand, before the day asks anything of me. No editing, no stopping — just the <strong>clearing of the mind</strong> onto the sheet.</p>
+<h2>Today</h2>
+<p>Slept well. The light came in soft and grey. I want to keep things simple: write, walk, read, repeat.</p>`,
+  `<h1>Field notes — June</h1>
+<h2>Observations</h2>
+<p>The hedgerows are thick now, loud with sparrows at dawn. I counted four foxes this week along the old track.</p>
+<ul><li>Dawn chorus peaks around 5:10</li><li>Wildflowers opening on the south bank</li><li>River running low after the dry spell</li></ul>`,
+  ``,
+];
+
+const STORAGE_KEY = "alltra-journal-v1";
+const APPEARANCE_KEY = "alltra-journal-appearance";
+const ACCENT_KEY = "alltra-journal-accent";
+const THEME_NAMES = ["light", "dark", "onyx", "amber", "iris", "slate"] as const;
+const FAVORITES_KEY = "alltra-journal-favorites";
+const TEMPLATE_FAVS_KEY = "alltra-journal-template-favs";
+const CUSTOM_TEMPLATES_KEY = "alltra-journal-custom-templates";
+const DEFAULT_DATE = "2026-06-24";
+// The AI assistant's name. At transfer this reads the user's custom name
+// (default "Alltra Intelligence"); hardcoded "Nikki" for the prototype.
+const ASSISTANT_NAME = "Nikki";
+
+function loadFavorites(): string[] {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadTemplateFavs(): string[] {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_FAVS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadCustomTemplates(): JournalTemplate[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TEMPLATES_KEY);
+    return raw ? (JSON.parse(raw) as JournalTemplate[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+type TrashItem = { html: string; title: string; date: string };
+
+type Saved = {
+  pages: string[];
+  dates: string[];
+  trash?: TrashItem[];
+  page: number;
+  theme: number;
+  font: number;
+  sizeV: number;
+  spacingV: number;
+  trackingV?: number;
+  align: number;
+};
+
+function loadSaved(): Saved | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+// pull a sidebar label out of a page's HTML: prefer the first heading, else the
+// first block's text — block-separated so a heading/cell never fuses into the
+// next block ("Content table" not "Content tableA tidy label…").
+function deriveTitle(html: string): string {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  const heading = el.querySelector("h1,h2,h3")?.textContent?.trim();
+  if (heading) return heading.slice(0, 42);
+  el.querySelectorAll("p,li,td,th,blockquote,pre").forEach((n) => n.append(" "));
+  const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 42) : "Untitled";
+}
+
+// flatten a page's HTML to plain text (for search)
+function htmlToText(html: string): string {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  // separate block elements so a heading doesn't fuse into the next block
+  // ("Content table" + "A tidy label" → "Content table A tidy label", not "…tableA…")
+  el.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,td,th,blockquote,pre").forEach(
+    (n) => n.append(" ")
+  );
+  return (el.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+// does an entry have real content (beyond an empty doc)? — the commit gate
+function hasMeaningfulContent(html: string): boolean {
+  return htmlToText(html).length > 0;
+}
+
+
+// "Today" / "Yesterday" / "Jun 23" for a YYYY-MM-DD date row label
+function fmtDateLabel(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === -1) return "Yesterday";
+  if (diff === 1) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// write a new title into a page's HTML by replacing (or inserting) its <h1>
+function setEntryTitle(html: string, name: string): string {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  let h1 = el.querySelector("h1");
+  if (!h1) {
+    h1 = document.createElement("h1");
+    el.insertBefore(h1, el.firstChild);
+  }
+  h1.textContent = name;
+  return el.innerHTML;
+}
+
+// each theme carries an accent AND a font, so swatches change the whole feel
+const THEMES = [
+  { name: "Slate", accent: "#1f2024", font: 0, bg: "bg-white", fg: "text-[#1f2024]" },
+  { name: "Blue", accent: "#0066ff", font: 0, bg: "bg-[#eef4ff]", fg: "text-[#0066ff]" },
+  { name: "Green", accent: "#1f9d57", font: 1, bg: "bg-[#eefaf0]", fg: "text-[#1f9d57]" },
+  { name: "Amber", accent: "#cf9410", font: 1, bg: "bg-[#fff7e6]", fg: "text-[#cf9410]" },
+  {
+    name: "Violet",
+    accent: "#8b51e0",
+    font: 2,
+    bg: "bg-gradient-to-br from-[#f1e9ff] to-[#ffe9f3]",
+    fg: "text-[#8b51e0]",
+  },
+];
+
+/* ── small building blocks ───────────────────────────────────────────────── */
+
+function ChromeBtn({
+  children,
+  onClick,
+  title,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  title?: string;
+}) {
+  return (
+    <button
+      title={title}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className="grid h-8 w-8 place-items-center rounded-[8px] text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+    >
+      {children}
+    </button>
+  );
+}
+
+/* circle / square icon control with the label beneath it (reference style) */
+function Control({
+  icon,
+  label,
+  onClick,
+  onMouseDown,
+  shape = "square",
+  active = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+  onMouseDown?: () => void;
+  shape?: "square" | "circle";
+  active?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <button
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onMouseDown?.();
+        }}
+        onClick={onClick}
+        title={label}
+        className={
+          "grid h-[62px] place-items-center border shadow-sm transition-colors " +
+          (shape === "circle" ? "aspect-square rounded-full " : "w-full rounded-2xl ") +
+          (active
+            ? "border-[var(--alltra-brand)] bg-[rgba(var(--alltra-brand-rgb),0.08)] text-[var(--alltra-brand)]"
+            : "border-border bg-card text-text-muted hover:bg-card-hover hover:text-text")
+        }
+      >
+        {icon}
+      </button>
+      <span
+        className={
+          "text-[12px] font-medium " +
+          (active ? "text-[var(--alltra-brand)]" : "text-text-muted")
+        }
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* Pinned grid — iOS-style reordering. While dragging, the DOM order stays put;
+   the dragged pill floats under the cursor and the other pills glide to their
+   new slots purely via CSS transforms snapshotted at drag-start (no reflow, no
+   FLIP measurement races → smooth and never out of bounds). Tap = run command. */
+function PinnedGrid({
+  ids,
+  editor,
+  pinnedSelRef,
+  onReorder,
+}: {
+  ids: string[];
+  editor: Editor | null;
+  pinnedSelRef: { current: { from: number; to: number } | null };
+  onReorder: (next: string[]) => void;
+}) {
+  // favorites that actually render (skip Text-Editor-panel dupes + unknown ids)
+  const renderIds = ids.filter(
+    (id) =>
+      !PANEL_COMMAND_IDS.has(id) && !!SLASH_COMMANDS.find((c) => c.id === id)?.icon
+  );
+  const key = renderIds.join(",");
+
+  // `order` is stable for the whole drag — it only changes on commit/resync
+  const [order, setOrder] = useState<string[]>(renderIds);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overIndex, setOverIndex] = useState(0); // target slot under the cursor
+  const [ptr, setPtr] = useState({ x: 0, y: 0 }); // floating pill top-left
+  const [dragW, setDragW] = useState(0);
+
+  const wrapRefs = useRef<Record<string, HTMLElement | null>>({});
+  const drag = useRef<{
+    id: string;
+    dragIndex: number;
+    grab: { x: number; y: number };
+    start: { x: number; y: number };
+    started: boolean;
+    // viewport positions of every slot, snapshotted once when the drag starts
+    rects: { left: number; top: number; w: number; h: number }[];
+  } | null>(null);
+
+  // resync to favorites whenever the pinned set changes and we're not dragging
+  useEffect(() => {
+    if (!drag.current) setOrder(renderIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const begin = (e: ReactPointerEvent<HTMLElement>, id: string) => {
+    // capture the editor selection up-front so a plain tap still runs the
+    // command exactly where the caret was
+    if (editor) {
+      const { from, to } = editor.state.selection;
+      pinnedSelRef.current = { from, to };
+    }
+    const el = wrapRefs.current[id];
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    drag.current = {
+      id,
+      dragIndex: order.indexOf(id),
+      grab: { x: e.clientX - r.left, y: e.clientY - r.top },
+      start: { x: e.clientX, y: e.clientY },
+      started: false,
+      rects: [],
+    };
+    setDragW(r.width);
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const move = (e: ReactPointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.started) {
+      // small threshold so a tap isn't read as a drag
+      if (Math.hypot(e.clientX - d.start.x, e.clientY - d.start.y) < 5) return;
+      d.started = true;
+      // snapshot stable slot geometry NOW, before any transform is applied
+      d.rects = order.map((pid) => {
+        const r = wrapRefs.current[pid]!.getBoundingClientRect();
+        return { left: r.left, top: r.top, w: r.width, h: r.height };
+      });
+      setDragId(d.id);
+      setOverIndex(d.dragIndex);
+    }
+    setPtr({ x: e.clientX - d.grab.x, y: e.clientY - d.grab.y });
+    // target slot = the one whose center is nearest the cursor
+    let nearest = d.dragIndex;
+    let best = Infinity;
+    d.rects.forEach((rc, i) => {
+      const dist = Math.hypot(
+        e.clientX - (rc.left + rc.w / 2),
+        e.clientY - (rc.top + rc.h / 2)
+      );
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    });
+    if (nearest !== overIndex) setOverIndex(nearest);
+  };
+
+  const end = (e: ReactPointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    if (d.started) {
+      // commit: move the dragged id from its slot to the hovered slot
+      const next = [...order];
+      const [moved] = next.splice(d.dragIndex, 1);
+      next.splice(overIndex, 0, moved);
+      setOrder(next); // transforms clear (dragId null) → snaps to final, no flash
+      setDragId(null);
+      onReorder(next);
+    } else if (editor) {
+      // a tap → run the command at the captured selection
+      const cmd = SLASH_COMMANDS.find((c) => c.id === d.id);
+      if (cmd) {
+        const sel = pinnedSelRef.current;
+        if (sel && sel.to <= editor.state.doc.content.size)
+          editor.commands.setTextSelection(sel);
+        runFavoriteCommand(editor, cmd);
+      }
+    }
+  };
+
+  // while dragging, which visual slot should the pill at original index i occupy?
+  const slotOf = (i: number) => {
+    const d = drag.current;
+    if (!d) return i;
+    const from = d.dragIndex;
+    if (i === from) return i; // the dragged pill itself (invisible placeholder)
+    if (from < overIndex) return i > from && i <= overIndex ? i - 1 : i;
+    if (from > overIndex) return i >= overIndex && i < from ? i + 1 : i;
+    return i;
+  };
+
+  const dragCmd = dragId ? SLASH_COMMANDS.find((c) => c.id === dragId) : null;
+  const DragIcon = dragCmd?.icon;
+  const rects = drag.current?.rects;
+
+  return (
+    <>
+      <div className="grid grid-cols-5 gap-2.5">
+        {order.map((id, i) => {
+          const cmd = SLASH_COMMANDS.find((c) => c.id === id);
+          const Icon = cmd?.icon;
+          if (!cmd || !Icon) return null;
+          const isDragged = dragId === id;
+          // translate the pill from its home slot to its target slot
+          let transform = "";
+          if (dragId && rects && !isDragged) {
+            const home = rects[i];
+            const targ = rects[slotOf(i)];
+            if (home && targ)
+              transform = `translate(${targ.left - home.left}px, ${
+                targ.top - home.top
+              }px)`;
+          }
+          return (
+            <div
+              key={id}
+              ref={(el) => (wrapRefs.current[id] = el)}
+              onPointerDown={(e) => begin(e, id)}
+              onPointerMove={move}
+              onPointerUp={end}
+              onPointerCancel={end}
+              style={{
+                transform,
+                // animate only while a drag is active; snap instantly otherwise
+                transition: dragId
+                  ? "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
+                  : "none",
+                zIndex: isDragged ? 1 : 2,
+              }}
+              className={
+                "flex cursor-grab touch-none select-none flex-col items-center gap-1.5 active:cursor-grabbing " +
+                (isDragged ? "opacity-0" : "")
+              }
+            >
+              <div className="grid aspect-square h-[62px] place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text">
+                <Icon size={17} />
+              </div>
+              <span className="text-[12px] font-medium text-text-muted">
+                {cmd.title}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* the pill that floats under the finger while dragging */}
+      {dragId &&
+        DragIcon &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: ptr.x,
+              top: ptr.y,
+              width: dragW,
+              zIndex: 9999,
+              pointerEvents: "none",
+            }}
+            className="flex flex-col items-center gap-1.5"
+          >
+            <div
+              style={{ transform: "scale(1.06)" }}
+              className="grid aspect-square h-[62px] w-[62px] place-items-center rounded-full border border-[var(--alltra-brand)] bg-card text-[var(--alltra-brand)] shadow-xl"
+            >
+              <DragIcon size={17} />
+            </div>
+            <span className="text-[12px] font-medium text-text-muted">
+              {dragCmd?.title}
+            </span>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
+/* Apple Control-Center style vertical slider — drag up/down to fill */
+function VSlider({
+  value,
+  onChange,
+  icon,
+  label,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  icon: ReactNode;
+  label: string;
+}) {
+  const set = (el: HTMLElement, clientY: number) => {
+    const r = el.getBoundingClientRect();
+    onChange(Math.min(1, Math.max(0, 1 - (clientY - r.top) / r.height)));
+  };
+  return (
+    <div className="flex h-full flex-1 flex-col items-center gap-1.5">
+      <div
+        role="slider"
+        aria-valuenow={Math.round(value * 100)}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          set(e.currentTarget, e.clientY);
+        }}
+        onPointerMove={(e) => {
+          if (e.buttons === 1) set(e.currentTarget, e.clientY);
+        }}
+        className="relative w-full flex-1 cursor-ns-resize select-none overflow-hidden rounded-[24px] border border-border bg-[var(--surface-3)] shadow-sm"
+      >
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 bg-white"
+          style={{ height: `${value * 100}%` }}
+        />
+        <span className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center text-text-muted">
+          {icon}
+        </span>
+      </div>
+      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+    </div>
+  );
+}
+
+/* selection-only AI menu lives in ./components/SelectionMenu (shared with Notes) */
+
+/* ── nav drawer (slide / expand-collapse) — the EnhancedLeftSidebar slot ─── */
+
+interface NavEntry {
+  index: number;
+  date: string;
+  label: string;
+  title: string;
+  snippet: string;
+}
+
+function NavDrawer({
+  entries,
+  page,
+  expanded,
+  onSelect,
+  onRename,
+  onDelete,
+  onNew,
+  newDisabled = false,
+  onSearch,
+  onOpenCalendar,
+  onOpenNotes,
+  onOpenTrash,
+  trashCount,
+  onToggleExpanded,
+  onClose,
+  active,
+  onFavorite,
+  favoriteIds,
+  className = "",
+}: {
+  entries: NavEntry[];
+  page: number;
+  expanded: boolean;
+  onSelect: (i: number) => void;
+  onRename: (i: number, name: string) => void;
+  onDelete: (i: number) => void;
+  onNew: () => void;
+  newDisabled?: boolean;
+  onSearch: () => void;
+  onOpenCalendar: () => void;
+  onOpenNotes?: () => void;
+  onOpenTrash: () => void;
+  trashCount: number;
+  onToggleExpanded?: () => void;
+  onClose?: () => void;
+  active?: "calendar" | "notes";
+  onFavorite?: (i: number) => void;
+  favoriteIds?: Set<number>;
+  className?: string;
+}) {
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  // tree-menu expand/collapse — Today open, Daily Journal collapsed by default
+  const [openToday, setOpenToday] = useState(true);
+  const [openDaily, setOpenDaily] = useState(false);
+  // per-row kebab (⋮) action menu — which entry, and where to anchor it
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const openRowMenu = (i: number, btn: HTMLElement) => {
+    const r = btn.getBoundingClientRect();
+    setMenuPos({ x: r.right, y: r.bottom + 4 });
+    setMenuFor(i);
+  };
+  const startRename = (i: number) => {
+    setEditing(i);
+    setDraft(entries.find((e) => e.index === i)?.title || "");
+  };
+  const commit = () => {
+    if (editing !== null) onRename(editing, draft);
+    setEditing(null);
+  };
+
+  // one entry row — `kind` controls the two lines:
+  //  · "today"  → title/first-line on top, snippet below (no redundant "Today")
+  //  · "dated"  → the month-date label on top, title/snippet below
+  const renderRow = (e: NavEntry, kind: "today" | "dated") => {
+    if (editing === e.index) {
+      return (
+        <input
+          key={e.index}
+          autoFocus
+          value={draft}
+          onChange={(ev) => setDraft(ev.target.value)}
+          onBlur={commit}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter") commit();
+            if (ev.key === "Escape") setEditing(null);
+          }}
+          className="w-full rounded-lg border border-[var(--alltra-brand)] bg-card px-3 py-1.5 text-[12.5px] text-text outline-none"
+        />
+      );
+    }
+    const titleLine =
+      kind === "today" ? e.title || e.snippet || "Untitled" : e.label;
+    const subLine =
+      kind === "today"
+        ? e.title
+          ? e.snippet
+          : ""
+        : e.title || e.snippet || "Untitled";
+    return (
+      <div
+        key={e.index}
+        className={
+          "group relative flex items-center rounded-md transition-colors " +
+          (e.index === page
+            ? "bg-accent-soft"
+            : "hover:bg-[var(--hover-overlay)]")
+        }
+      >
+        <button
+          onClick={() => onSelect(e.index)}
+          className="min-w-0 flex-1 px-3 py-2 pr-12 text-left"
+        >
+          <div
+            className={
+              "flex items-center truncate text-[12px] font-semibold " +
+              (e.index === page ? "text-text" : "text-text-muted")
+            }
+          >
+            {favoriteIds?.has(e.index) && (
+              <Star
+                size={11}
+                fill="currentColor"
+                className="mr-1 shrink-0 text-amber-500"
+              />
+            )}
+            <span className="min-w-0 truncate">{titleLine}</span>
+          </div>
+          {subLine && (
+            <div className="truncate text-[12px] text-text-faint">{subLine}</div>
+          )}
+        </button>
+        <button
+          title="More actions"
+          onClick={(ev) => {
+            ev.stopPropagation();
+            openRowMenu(e.index, ev.currentTarget);
+          }}
+          className={
+            "absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-text-faint transition-colors hover:bg-[var(--hover-overlay-medium)] hover:text-text " +
+            (menuFor === e.index ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+          }
+        >
+          <MoreVertical size={14} />
+        </button>
+      </div>
+    );
+  };
+
+  const todayEntries = entries.filter((e) => e.label === "Today");
+  const datedEntries = entries.filter((e) => e.label !== "Today");
+
+  // one collapsible tree group (icon · label · count · chevron, indented kids)
+  const treeNode = (
+    Icon: typeof Sun,
+    label: string,
+    open: boolean,
+    toggle: () => void,
+    rows: NavEntry[],
+    kind: "today" | "dated"
+  ) => (
+    <section>
+      <button
+        onClick={toggle}
+        className="group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--hover-overlay)]"
+      >
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-border bg-card text-text-muted">
+          <Icon size={13} />
+        </span>
+        <span className="flex-1 text-[12.5px] font-medium text-text">{label}</span>
+        <span className="rounded-md bg-[var(--hover-overlay-medium)] px-1.5 text-[10px] font-semibold tabular-nums text-text-muted">
+          {rows.length}
+        </span>
+        <ChevronDown
+          size={14}
+          className={
+            "text-text-faint transition-transform duration-200 ease-in-out " +
+            (open ? "rotate-0" : "-rotate-90")
+          }
+        />
+      </button>
+      {/* animated collapse: grid 0fr→1fr transitions height smoothly */}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+        style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <div className="ml-[19px] mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
+            {rows.map((e) => renderRow(e, kind))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const shell: CSSProperties = {
+    background: "var(--surface-2)",
+    borderRight: "1px solid var(--border-2)",
+    transition: "width 0.22s cubic-bezier(0.22,0.61,0.36,1)",
+  };
+
+  // ── collapsed icon rail ──────────────────────────────────────────────────
+  if (!expanded) {
+    const railBtn =
+      "grid h-9 w-9 place-items-center rounded-lg text-text-muted transition-colors hover:bg-[var(--hover-overlay-medium)] hover:text-text";
+    return (
+      <aside
+        className={"flex shrink-0 flex-col items-center gap-1.5 overflow-hidden py-4 " + className}
+        style={{ ...shell, width: 58 }}
+      >
+        <button onClick={onToggleExpanded} title="Expand" className={railBtn}>
+          <ChevronRight size={18} />
+        </button>
+        <div className="my-1 h-px w-6 bg-border" />
+        <button
+          onClick={onNew}
+          disabled={newDisabled}
+          title={newDisabled ? "10 entries max per day" : "New entry"}
+          className={railBtn + " disabled:opacity-30"}
+        >
+          <Plus size={18} />
+        </button>
+        <button onClick={onSearch} title="Search (⌘K)" className={railBtn}>
+          <Search size={17} />
+        </button>
+        <button onClick={onOpenCalendar} title="Calendar" className={railBtn}>
+          <CalendarDays size={17} />
+        </button>
+        <div className="flex-1" />
+        <button onClick={onOpenTrash} title="Trash" className={"relative " + railBtn}>
+          <Trash2 size={17} />
+          {trashCount > 0 && (
+            <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--warning)]" />
+          )}
+        </button>
+        <span className="mt-1 grid h-8 w-8 place-items-center rounded-full bg-[var(--alltra-brand)] text-[12px] font-semibold text-white">
+          H
+        </span>
+      </aside>
+    );
+  }
+
+  // ── expanded drawer ──────────────────────────────────────────────────────
+  return (
+    <aside
+      className={"flex shrink-0 flex-col overflow-hidden px-3.5 py-4 " + className}
+      style={{ ...shell, width: 268 }}
+    >
+      <div className="mb-3 flex items-center justify-between px-1">
+        <span className="text-[12px] font-semibold tracking-wide text-text-faint">
+          Journal
+        </span>
+        <button
+          onClick={onClose ?? onToggleExpanded}
+          title={onClose ? "Close" : "Collapse"}
+          className="grid h-7 w-7 place-items-center rounded-md text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+        >
+          {onClose ? <X size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
+
+      <button
+        onClick={onSearch}
+        className="mb-2.5 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm transition-colors hover:bg-card-hover"
+      >
+        <Search size={15} className="text-text-faint" />
+        <span className="flex-1 text-left text-[12.5px] text-text-muted">Search</span>
+        <kbd className="rounded border border-border bg-[var(--surface-3)] px-1.5 py-px text-[10px] text-text-faint">
+          ⌘K
+        </kbd>
+      </button>
+
+      <button
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onNew}
+        disabled={newDisabled}
+        title={newDisabled ? "10 entries max per day" : "New entry"}
+        className="mb-2.5 flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-[13px] font-medium text-text shadow-sm transition-colors hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
+      >
+        <Plus size={15} /> {newDisabled ? "Day full (10/10)" : "New entry"}
+      </button>
+
+      <button
+        onClick={onOpenCalendar}
+        className={
+          "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors " +
+          (active === "calendar"
+            ? "bg-accent-soft font-medium text-text"
+            : "text-text-muted hover:bg-[var(--hover-overlay)] hover:text-text")
+        }
+      >
+        <CalendarDays size={15} /> Calendar
+      </button>
+
+      <button
+        onClick={onOpenNotes}
+        className={
+          "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors " +
+          (active === "notes"
+            ? "bg-accent-soft font-medium text-text"
+            : "text-text-muted hover:bg-[var(--hover-overlay)] hover:text-text")
+        }
+      >
+        <StickyNote size={15} /> Notes
+      </button>
+
+      <div className="mb-3 border-t border-border" />
+
+      <div className="hide-scrollbar -mx-1 flex flex-1 flex-col overflow-y-auto px-1">
+        {entries.length === 0 ? (
+          <p className="px-2 py-3 text-[12px] text-text-faint">No entries yet.</p>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {todayEntries.length > 0 &&
+              treeNode(
+                Sun,
+                "Today",
+                openToday,
+                () => setOpenToday((o) => !o),
+                todayEntries,
+                "today"
+              )}
+            {datedEntries.length > 0 &&
+              treeNode(
+                FileText,
+                "Daily Journal",
+                openDaily,
+                () => setOpenDaily((o) => !o),
+                datedEntries,
+                "dated"
+              )}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onOpenTrash}
+        className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-text-faint transition-colors hover:bg-[var(--hover-overlay)] hover:text-text-muted"
+      >
+        <Trash2 size={14} /> Trash
+        {trashCount > 0 && (
+          <span className="ml-auto rounded-full bg-[var(--hover-overlay-medium)] px-1.5 text-[10px] font-semibold text-text-muted">
+            {trashCount}
+          </span>
+        )}
+      </button>
+
+      <div className="mt-2 flex items-center gap-2.5 border-t border-border px-2 pt-3">
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--alltra-brand)] text-[12px] font-semibold text-white">
+          H
+        </span>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-[12.5px] font-medium text-text">Hussein</p>
+          <p className="truncate text-[11px] text-text-faint">@hussein</p>
+        </div>
+        <span className="ml-auto h-2 w-2 rounded-full bg-[var(--success)]" />
+      </div>
+
+      {/* per-row action menu (Edit name · Favorite · Delete) */}
+      {menuFor !== null &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[600]"
+              onClick={() => setMenuFor(null)}
+            />
+            <div
+              style={{
+                position: "fixed",
+                left: Math.max(8, menuPos.x - 172),
+                top: menuPos.y,
+                width: 172,
+              }}
+              className="z-[601] rounded-xl border border-border bg-elevated p-1.5 shadow-lg"
+            >
+              <button
+                onClick={() => {
+                  startRename(menuFor);
+                  setMenuFor(null);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-text transition-colors hover:bg-[var(--hover-overlay)]"
+              >
+                <Pencil size={14} className="text-text-muted" /> Edit name
+              </button>
+              {onFavorite && (
+                <button
+                  onClick={() => {
+                    onFavorite(menuFor);
+                    setMenuFor(null);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-text transition-colors hover:bg-[var(--hover-overlay)]"
+                >
+                  <Star
+                    size={14}
+                    className={
+                      favoriteIds?.has(menuFor)
+                        ? "text-amber-500"
+                        : "text-text-muted"
+                    }
+                    fill={favoriteIds?.has(menuFor) ? "currentColor" : "none"}
+                  />{" "}
+                  {favoriteIds?.has(menuFor) ? "Unfavorite" : "Favorite"}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  onDelete(menuFor);
+                  setMenuFor(null);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[12.5px] text-text transition-colors hover:bg-[var(--hover-overlay)] hover:text-[var(--warning)]"
+              >
+                <Trash2 size={14} className="text-text-muted" /> Delete
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
+    </aside>
+  );
+}
+
+/* ── trash modal ─────────────────────────────────────────────────────────── */
+
+function TrashModal({
+  trash,
+  onRestore,
+  onDeleteForever,
+  onEmpty,
+  onClose,
+}: {
+  trash: TrashItem[];
+  onRestore: (i: number) => void;
+  onDeleteForever: (i: number) => void;
+  onEmpty: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/30 p-6"
+      onMouseDown={onClose}
+    >
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="flex max-h-[70vh] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border border-border bg-elevated shadow-lg"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text">
+            <Trash2 size={16} /> Trash
+            <span className="text-text-faint">{trash.length}</span>
+          </h2>
+          <div className="flex items-center gap-1">
+            {trash.length > 0 && (
+              <button
+                onClick={onEmpty}
+                className="rounded-md px-2 py-1 text-[12px] font-medium text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-[var(--warning)]"
+              >
+                Empty
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="grid h-7 w-7 place-items-center rounded-md text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2">
+          {trash.length === 0 ? (
+            <p className="px-3 py-10 text-center text-[13px] text-text-faint">
+              Trash is empty.
+            </p>
+          ) : (
+            trash.map((it, i) => (
+              <div
+                key={i}
+                className="group flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-[var(--hover-overlay)]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-text">
+                    {it.title || "Untitled"}
+                  </p>
+                  <p className="text-[11px] text-text-faint">{it.date}</p>
+                </div>
+                <button
+                  title="Restore"
+                  onClick={() => onRestore(i)}
+                  className="flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[12px] text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text"
+                >
+                  <RotateCcw size={13} /> Restore
+                </button>
+                <button
+                  title="Delete forever"
+                  onClick={() => onDeleteForever(i)}
+                  className="grid h-7 w-7 place-items-center rounded-md text-text-faint transition-colors hover:bg-[var(--hover-overlay-medium)] hover:text-[var(--warning)]"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ⌘K spotlight search ─────────────────────────────────────────────────── */
+
+type SearchEntry = { index: number; title: string; date: string; text: string };
+
+function SpotlightModal({
+  entries,
+  onPick,
+  onClose,
+}: {
+  entries: SearchEntry[];
+  onPick: (i: number) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState(0);
+
+  const ql = q.trim().toLowerCase();
+  const results = ql
+    ? entries.filter(
+        (e) =>
+          e.title.toLowerCase().includes(ql) || e.text.toLowerCase().includes(ql)
+      )
+    : entries;
+
+  useEffect(() => setSel(0), [q]);
+
+  // keep the arrow-highlighted result scrolled into view for keyboard users
+  const listRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-idx="${sel}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [sel]);
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSel((s) => Math.min(results.length - 1, s + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSel((s) => Math.max(0, s - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (results[sel]) onPick(results[sel].index);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  const snippet = (text: string) => {
+    if (!ql) return text.slice(0, 90);
+    const i = text.toLowerCase().indexOf(ql);
+    if (i < 0) return text.slice(0, 90);
+    const start = Math.max(0, i - 28);
+    return (
+      <>
+        {start > 0 ? "…" : ""}
+        {text.slice(start, i)}
+        <mark className="rounded bg-[rgba(0,102,255,0.18)] text-text">
+          {text.slice(i, i + ql.length)}
+        </mark>
+        {text.slice(i + ql.length, i + ql.length + 52)}…
+      </>
+    );
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[400] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
+      onMouseDown={onClose}
+    >
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="flex max-h-[60vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-elevated shadow-lg"
+      >
+        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+          <Search size={17} className="text-text-faint" />
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={onKey}
+            placeholder="Search entries…"
+            className="flex-1 bg-transparent text-[14px] text-text outline-none placeholder:text-text-faint"
+          />
+          <kbd className="rounded border border-border bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] text-text-faint">
+            Esc
+          </kbd>
+        </div>
+
+        <div ref={listRef} className="flex-1 overflow-y-auto p-2">
+          {results.length === 0 ? (
+            <p className="px-3 py-10 text-center text-[13px] text-text-faint">
+              No matching entries.
+            </p>
+          ) : (
+            results.map((r, idx) => (
+              <button
+                key={r.index}
+                data-idx={idx}
+                onMouseEnter={() => setSel(idx)}
+                onClick={() => onPick(r.index)}
+                className={
+                  "flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors " +
+                  (idx === sel ? "bg-accent-soft" : "hover:bg-[var(--hover-overlay)]")
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-[13.5px] font-medium text-text">
+                    {r.title || "Untitled"}
+                  </span>
+                  <span className="ml-auto shrink-0 text-[11px] text-text-faint">
+                    {r.date}
+                  </span>
+                </div>
+                <span className="block truncate text-[12px] text-text-muted">
+                  {r.text ? snippet(r.text) : "Empty entry"}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── share / export menu ─────────────────────────────────────────────────── */
+
+function ShareMenu({
+  onCopyMarkdown,
+  onDownloadMarkdown,
+  onCopyText,
+  onPrint,
+}: {
+  onCopyMarkdown: () => void;
+  onDownloadMarkdown: () => void;
+  onCopyText: () => void;
+  onPrint: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+  const pick = (fn: () => void) => () => {
+    fn();
+    setOpen(false);
+  };
+  const item = (icon: ReactNode, label: string, fn: () => void) => (
+    <button
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={pick(fn)}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-text transition-colors hover:bg-card-hover"
+    >
+      <span className="text-text-muted">{icon}</span>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="relative">
+      <button
+        title="Share & export"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((o) => !o)}
+        className={
+          "grid h-8 w-8 place-items-center rounded-[8px] transition-colors hover:bg-[var(--hover-overlay)] hover:text-text " +
+          (open ? "bg-[var(--hover-overlay)] text-text" : "text-text-muted")
+        }
+      >
+        <Share2 size={16} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[290]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-10 z-[300] w-60 rounded-xl border border-border bg-elevated p-1.5 shadow-lg">
+            <p className="px-2.5 pb-1 pt-1 text-[11px] font-semibold tracking-tight text-text-faint">
+              Export this entry
+            </p>
+            {item(<FileText size={15} />, "Copy as Markdown", onCopyMarkdown)}
+            {item(<Download size={15} />, "Download .md", onDownloadMarkdown)}
+            {item(<Copy size={15} />, "Copy as plain text", onCopyText)}
+            <div className="my-1 border-t border-border" />
+            {item(<Printer size={15} />, "Print / Save as PDF", onPrint)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── app ─────────────────────────────────────────────────────────────────── */
+
+export default function App() {
+  const paperRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<MenuState>(null);
+  const [currentApp, setCurrentApp] = useState("tracker");
+  // block hover-handle (the ⠿ grip) + the block action menu it opens
+  const [blockHandle, setBlockHandle] = useState<
+    { top: number; left: number; pos: number } | null
+  >(null);
+  const [blockMenu, setBlockMenu] = useState<
+    { x: number; top: number; bottom: number; pos: number } | null
+  >(null);
+
+  // hydrate once from localStorage (falls back to the seed pages)
+  const [boot] = useState(loadSaved);
+
+  const [theme, setTheme] = useState(boot?.theme ?? 0);
+  const [font, setFont] = useState(boot?.font ?? 0);
+  const [sizeV, setSizeV] = useState(boot?.sizeV ?? 0.4);
+  const [spacingV, setSpacingV] = useState(boot?.spacingV ?? 0.5);
+  const [trackingV, setTrackingV] = useState(boot?.trackingV ?? 0.2);
+  const [align] = useState(boot?.align ?? 0);
+
+  // book pages — content lives in pagesRef; titles/page drive the surrounding UI
+  const pagesRef = useRef<string[]>(
+    boot?.pages?.length ? boot.pages : [...PAGES]
+  );
+  const [page, setPage] = useState(
+    boot ? Math.min(boot.page ?? 0, pagesRef.current.length - 1) : 0
+  );
+  const [dir, setDir] = useState<"next" | "prev">("next");
+  const [titles, setTitles] = useState<string[]>(() =>
+    pagesRef.current.map(deriveTitle)
+  );
+  const [dates, setDates] = useState<string[]>(() =>
+    boot?.dates?.length === pagesRef.current.length
+      ? boot.dates
+      : pagesRef.current.map(() => DEFAULT_DATE)
+  );
+  const [trash, setTrash] = useState<TrashItem[]>(() => boot?.trash ?? []);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  // VIEW state is in-memory (NOT localStorage) → fresh load always lands on the
+  // calendar home; in-session navigation keeps you in the editor at your entry.
+  const [view, setView] = useState<"calendar" | "editor" | "notes">("calendar");
+  const [showDailyPerf, setShowDailyPerf] = useState(true);
+  const [navOpen, setNavOpen] = useState(false); // mobile left-nav drawer
+  const [panelOpen, setPanelOpen] = useState(false); // mobile right-widgets drawer
+  const [rightCollapsed, setRightCollapsed] = useState(false); // desktop collapse
+  const [favorites, setFavorites] = useState<string[]>(loadFavorites);
+  // favorited journal entries (by page index) — toggled from the row kebab menu
+  const [favEntries, setFavEntries] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem("alltra-journal-fav-entries");
+      if (raw) return new Set<number>(JSON.parse(raw) as number[]);
+    } catch {
+      /* ignore */
+    }
+    return new Set<number>();
+  });
+  const toggleFavEntry = (i: number) => {
+    setFavEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      try {
+        localStorage.setItem(
+          "alltra-journal-fav-entries",
+          JSON.stringify([...next])
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+  // entries marked "logged" (draft → complete), by page index — mirrors favEntries
+  const [loggedEntries, setLoggedEntries] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem("alltra-journal-logged-entries");
+      if (raw) return new Set<number>(JSON.parse(raw) as number[]);
+    } catch {
+      /* ignore */
+    }
+    return new Set<number>();
+  });
+  const toggleLoggedEntry = (i: number) => {
+    setLoggedEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      try {
+        localStorage.setItem(
+          "alltra-journal-logged-entries",
+          JSON.stringify([...next])
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+  // Both entry sets are keyed by page index; shift them when entry `removed` is
+  // spliced out so favorites/logged stay pinned to the right entries.
+  const reindexEntrySetsOnDelete = (removed: number) => {
+    const shift = (s: Set<number>): Set<number> => {
+      const n = new Set<number>();
+      s.forEach((x) => {
+        if (x !== removed) n.add(x > removed ? x - 1 : x);
+      });
+      return n;
+    };
+    setFavEntries((prev) => {
+      const n = shift(prev);
+      try {
+        localStorage.setItem("alltra-journal-fav-entries", JSON.stringify([...n]));
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+    setLoggedEntries((prev) => {
+      const n = shift(prev);
+      try {
+        localStorage.setItem("alltra-journal-logged-entries", JSON.stringify([...n]));
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  };
+  const [templateFavs, setTemplateFavs] = useState<string[]>(loadTemplateFavs);
+  const [customTemplates, setCustomTemplates] =
+    useState<JournalTemplate[]>(loadCustomTemplates);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  // custom-template authoring (build a template inline in the editor, then Save)
+  const [authoring, setAuthoring] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const authoringRef = useRef(false);
+  authoringRef.current = authoring;
+  const [nikkiOpen, setNikkiOpen] = useState(false); // mock AI panel
+  const [isSaved, setIsSaved] = useState(true);
+  const saveTimer = useRef<number | undefined>(undefined);
+  // a provisional entry (last index) is open but NOT yet persisted — it commits
+  // when real content is typed, and is discarded if left empty.
+  const [provisionalIndex, setProvisionalIndexState] = useState<number | null>(
+    null
+  );
+
+  // appearance (v3): theme (6) + accent (15) → <html data-theme / data-accent>
+  const [uiTheme, setUiTheme] = useState<ThemeName>(() => {
+    const t = localStorage.getItem(APPEARANCE_KEY);
+    return (THEME_NAMES as readonly string[]).includes(t ?? "")
+      ? (t as ThemeName)
+      : "light";
+  });
+  const [accent, setAccent] = useState<AccentName>(
+    () => (localStorage.getItem(ACCENT_KEY) as AccentName) || "alltra"
+  );
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  // Alltra v3 chrome: which section is active + a preview overlay for the
+  // Tracker sections the journal doesn't implement (Performance/Emotions/Trades).
+  const [previewSection, setPreviewSection] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Below md the section sidebar is hidden (its .alltra-sidenav CSS media query
+  // handles display); the content margin must drop to just the rail width.
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const on = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  // The highlighted sidebar section follows the real view (Calendar home ↔
+  // Journal editor / Notes), overridden by a preview section when one is open.
+  const activeSection =
+    previewSection ??
+    (view === "calendar" ? "calendar" : view === "notes" ? "notes" : "journal");
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute("data-theme", uiTheme);
+    root.setAttribute("data-accent", accent);
+    localStorage.setItem(APPEARANCE_KEY, uiTheme);
+    localStorage.setItem(ACCENT_KEY, accent);
+  }, [uiTheme, accent]);
+
+  // selection captured the instant a pinned button is pressed (mouse-down, before
+  // the click can disturb it) — the genuine cursor/highlight, whichever it is.
+  // restored before the command runs so it lands exactly where you were.
+  const pinnedSelRef = useRef<{ from: number; to: number } | null>(null);
+
+  // refs mirror state so TipTap's long-lived callbacks never read stale values
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  // live entry list + navigation for the PageLink node (set later in render)
+  const navEntriesRef = useRef<PageLinkEntry[]>([]);
+  const openPageLinkRef = useRef<(date: string, title: string) => void>(
+    () => {}
+  );
+  const settingsRef = useRef({ theme, font, sizeV, spacingV, trackingV, align });
+  settingsRef.current = { theme, font, sizeV, spacingV, trackingV, align };
+  const datesRef = useRef(dates);
+  datesRef.current = dates;
+  const trashRef = useRef(trash);
+  trashRef.current = trash;
+  const favoritesRef = useRef(favorites);
+  favoritesRef.current = favorites;
+  const provisionalRef = useRef<number | null>(null);
+  const setProvisional = (idx: number | null) => {
+    provisionalRef.current = idx;
+    setProvisionalIndexState(idx);
+  };
+
+  const toggleFavorite = (id: string, fav: boolean) => {
+    setFavorites((prev) => {
+      const next = fav
+        ? [id, ...prev.filter((x) => x !== id)] // newest pin first (top)
+        : prev.filter((x) => x !== id);
+      try {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  // commit a drag-reordered pinned list; keep any hidden (non-rendered) ids last
+  const reorderFavorites = (nextRender: string[]) => {
+    setFavorites((prev) => {
+      const hidden = prev.filter((id) => !nextRender.includes(id));
+      const next = [...nextRender, ...hidden];
+      try {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+
+  const savePersist = () => {
+    const p = pageRef.current;
+    if (editor) pagesRef.current[p] = editor.getHTML();
+    setTitles((t) => {
+      const n = [...t];
+      n[p] = deriveTitle(pagesRef.current[p] ?? "");
+      return n;
+    });
+    // never write an empty provisional entry to storage (it's transient)
+    let pages = pagesRef.current;
+    let savedDates = datesRef.current;
+    let savePage = p;
+    const pi = provisionalRef.current;
+    if (pi !== null && !hasMeaningfulContent(pagesRef.current[pi] ?? "")) {
+      pages = pagesRef.current.slice(0, pi);
+      savedDates = datesRef.current.slice(0, pi);
+      if (savePage >= pi) savePage = Math.max(0, pi - 1);
+    }
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          pages,
+          dates: savedDates,
+          trash: trashRef.current,
+          page: savePage,
+          ...settingsRef.current,
+        } satisfies Saved)
+      );
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+    setIsSaved(true);
+  };
+
+  const schedulePersist = () => {
+    setIsSaved(false);
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(savePersist, 500);
+  };
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      UnderlineExt,
+      Link.configure({ openOnClick: false, autolink: true }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      ResizableImage,
+      Placeholder.configure({
+        showOnlyCurrent: true,
+        placeholder: ({ node }) =>
+          node.type.name === "heading"
+            ? "Heading"
+            : "Type / for commands",
+      }),
+      TextStyle,
+      TextColor,
+      BgColor,
+      BlockStyle,
+      FontFamily,
+      FontSize,
+      LetterSpacing,
+      TaskListVariant,
+      TaskItem.configure({ nested: true }),
+      // Notion-style content tables (the "content table" templates + /table command)
+      Table.configure({ resizable: true, allowTableNodeSelection: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      Callout,
+      Toggle,
+      Tag,
+      IconNode,
+      Banner,
+      PageLink.configure({
+        getEntries: () => navEntriesRef.current,
+        onOpen: (date, title) => openPageLinkRef.current(date, title),
+      }),
+      TradeLink.configure({
+        // PROTOTYPE: mock trades; at transfer swap for the real dashboard source
+        getTrades: () => MOCK_TRADES,
+        onOpen: () => {
+          /* wires to the Alltra trade dashboard at launch */
+        },
+      }),
+      ListExit,
+      SlashCommand.configure({
+        favorites: {
+          getIds: () => favoritesRef.current,
+          onToggle: toggleFavorite,
+        },
+      }),
+    ],
+    content: pagesRef.current[page],
+    editorProps: { attributes: { class: "pm", spellcheck: "false" } },
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      pagesRef.current[pageRef.current] = html;      // a provisional entry becomes a real, persisted one the moment it has content
+      if (
+        provisionalRef.current !== null &&
+        provisionalRef.current === pageRef.current &&
+        hasMeaningfulContent(html)
+      ) {
+        setProvisional(null);
+      }
+      schedulePersist();
+    },
+  });
+
+  // Resolve the open provisional (always the last entry): clear the flag if it
+  // now has content (commit), or drop it from the arrays if it's still empty.
+  const discardProvisional = () => {
+    const pi = provisionalRef.current;
+    if (pi === null) return;
+    // a template draft is never a journal entry — drop it and exit authoring
+    if (authoringRef.current) {
+      forceRemoveProvisional();
+      setAuthoring(false);
+      return;
+    }
+    const html =
+      pi === page && editor ? editor.getHTML() : pagesRef.current[pi] ?? "";
+    if (hasMeaningfulContent(html)) {
+      setProvisional(null); // it's real now — keep it
+      return;
+    }
+    pagesRef.current.splice(pi, 1); // empty → remove the transient entry
+    setTitles((t) => t.slice(0, pi));
+    setDates((d) => d.slice(0, pi));
+    setProvisional(null);
+  };
+
+  // remove the open provisional page outright (even if it has content) — used by
+  // the template-draft flow, which must never leave a journal entry behind
+  function forceRemoveProvisional() {
+    const pi = provisionalRef.current;
+    if (pi === null) return;
+    pagesRef.current.splice(pi, 1);
+    setTitles((t) => t.slice(0, pi));
+    setDates((d) => d.slice(0, pi));
+    setProvisional(null);
+    setPage((p) => Math.max(0, Math.min(p, pagesRef.current.length - 1)));
+  }
+
+  const goTo = (target: number) => {
+    const clamped = Math.min(pagesRef.current.length - 1, Math.max(0, target));
+    if (clamped === page) return;
+    if (editor) {
+      const html = editor.getHTML();
+      pagesRef.current[page] = html;
+      setTitles((t) => {
+        const n = [...t];
+        n[page] = deriveTitle(html);
+        return n;
+      });
+    }
+    discardProvisional(); // leaving an empty provisional → discard it
+    setDir(clamped > page ? "next" : "prev");
+    setPage(clamped);
+    schedulePersist();
+  };
+
+  // all page indices that share a given page's date, in order (one "day")
+  const daySiblingsOf = (idx: number): number[] => {
+    const key = dates[idx];
+    if (key == null) return [idx];
+    return dates
+      .map((d, i) => (d === key ? i : -1))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b);
+  };
+
+  // flip within the current day's entries only (arrows / ←→ stay inside one date)
+  const goDay = (delta: number) => {
+    const sib = daySiblingsOf(page);
+    const pos = sib.indexOf(page);
+    const t = pos + delta;
+    if (t < 0 || t >= sib.length) return;
+    goTo(sib[t]);
+  };
+
+  // open a fresh PROVISIONAL entry for the given date — not persisted until typed
+  const startProvisional = (dateKey: string) => {
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    discardProvisional(); // drop any existing empty provisional first
+    pagesRef.current.push("");
+    const idx = pagesRef.current.length - 1;
+    setTitles((t) => [...t, "Untitled"]);
+    setDates((d) => [...d, dateKey]);
+    setProvisional(idx);
+    setDir("next");
+    setPage(idx);
+    // intentionally NO schedulePersist — provisional stays out of storage
+  };
+
+  // a new entry belongs to the day you're currently on; cap at 10 saved/day
+  const DAY_MAX = 10;
+  // count only entries with real content toward the per-day cap (matches the
+  // visible entry list, which also excludes empty/committed-then-emptied pages)
+  const savedOnDay = (key: string) =>
+    dates.filter(
+      (d, i) =>
+        d === key &&
+        i !== provisionalRef.current &&
+        hasMeaningfulContent(pagesRef.current[i] ?? "")
+    ).length;
+  const newEntry = () => {
+    const key = dates[page] ?? DEFAULT_DATE;
+    if (savedOnDay(key) >= DAY_MAX) return; // day is full — ignore further new entries
+    startProvisional(key);
+  };
+  const dayIsFull = savedOnDay(dates[page] ?? DEFAULT_DATE) >= DAY_MAX;
+
+  // move an entry to the trash (restorable); never leaves the book empty
+  const deleteEntry = (i: number) => {
+    if (editor && i === page) pagesRef.current[i] = editor.getHTML();
+    // deleting the provisional clears the flag; deleting before it shifts it down
+    if (provisionalRef.current !== null) {
+      if (i === provisionalRef.current) setProvisional(null);
+      else if (i < provisionalRef.current) setProvisional(provisionalRef.current - 1);
+    }
+    const html = pagesRef.current[i] ?? "";
+    const item: TrashItem = {
+      html,
+      title: titles[i] || "Untitled",
+      date: dates[i] ?? DEFAULT_DATE,
+    };
+    pagesRef.current.splice(i, 1);
+    reindexEntrySetsOnDelete(i); // keep favorites/logged pinned to the right entries
+    let nextDates = dates.filter((_, idx) => idx !== i);
+    if (pagesRef.current.length === 0) {
+      pagesRef.current.push("");
+      nextDates = [DEFAULT_DATE];
+    }
+    // never trash a blank, never-written draft
+    if (hasMeaningfulContent(html)) setTrash((tr) => [item, ...tr]);
+    setTitles(pagesRef.current.map(deriveTitle));
+    setDates(nextDates);
+
+    const target =
+      i < page ? page - 1 : Math.min(page, pagesRef.current.length - 1);
+    setDir("prev");
+    if (target === page) {
+      editor?.commands.setContent(pagesRef.current[target] ?? "", false);    } else {
+      setPage(target);
+    }
+    schedulePersist();
+  };
+
+  const renameEntry = (i: number, name: string) => {
+    const clean = name.trim() || "Untitled";
+    pagesRef.current[i] = setEntryTitle(pagesRef.current[i] ?? "", clean);
+    setTitles(pagesRef.current.map(deriveTitle));
+    if (i === page) {
+      editor?.commands.setContent(pagesRef.current[i] ?? "", false);    }
+    schedulePersist();
+  };
+
+  const restoreEntry = (ti: number) => {
+    const item = trash[ti];
+    if (!item) return;
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    // commit/drop any open provisional first so it stays the LAST entry (the
+    // invariant savePersist's slice relies on) after we append the restored one
+    discardProvisional();
+    pagesRef.current.push(item.html);
+    setDates((d) => [...d, item.date]);
+    setTitles(pagesRef.current.map(deriveTitle));
+    setTrash((tr) => tr.filter((_, idx) => idx !== ti));
+    setDir("next");
+    setPage(pagesRef.current.length - 1);
+    schedulePersist();
+  };
+
+  const deleteForever = (ti: number) => {
+    setTrash((tr) => tr.filter((_, idx) => idx !== ti));
+    schedulePersist();
+  };
+
+  const emptyTrash = () => {
+    setTrash([]);
+    schedulePersist();
+  };
+
+  // swap the editor's content on every page flip + replay the swipe animation
+  useLayoutEffect(() => {
+    if (!editor) return;
+    editor.commands.setContent(pagesRef.current[page] ?? "", false);    const el = paperRef.current;
+    if (el) {
+      el.classList.remove("page-next", "page-prev");
+      void el.offsetWidth; // force reflow so the animation replays
+      el.classList.add(dir === "next" ? "page-next" : "page-prev");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, editor]);
+
+  // persist when a setting changes (skip the very first run)
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    schedulePersist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, font, sizeV, spacingV, trackingV, align]);
+
+  // selecting text now opens the block action menu (see openBlockMenuFromSelection);
+  // the AI rewrite menu is reached from that menu's "Ask AI". This listener only
+  // CLOSES that AI menu once the selection collapses — it never opens it.
+  useEffect(() => {
+    function onSelChange() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) setMenu(null);
+    }
+    document.addEventListener("selectionchange", onSelChange);
+    return () => document.removeEventListener("selectionchange", onSelChange);
+  }, []);
+
+  // ←/→ flip pages — only when not typing (Alt+arrow flips even while editing)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      if (editor?.isFocused && !e.altKey) return; // let the caret move
+      e.preventDefault();
+      goDay(e.key === "ArrowRight" ? 1 : -1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, page, dates]);
+
+  const openSpotlight = () => {
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    setSpotlightOpen(true);
+  };
+
+  // AI selection actions — transform the highlighted text via Claude, then replace it
+  const runAI = async (action: AiAction) => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, " ").trim();
+    if (!text) return;
+    setMenu(null);
+    setAiBusy(true);
+    try {
+      const result = await aiTransform(action, text);
+      if (result) editor.chain().focus().insertContentAt({ from, to }, result).run();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "AI request failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  // ── two-state navigation (calendar home ⇄ editor) ──────────────────────────
+  const goCalendar = () => {
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    setView("calendar"); // STATE 1
+  };
+  const goEditor = () => setView("editor"); // STATE 2 at the current/last entry
+  const goNotes = () => {
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    setView("notes"); // STATE 3 — the separate Notes space
+  };
+
+  // Build the calendar's data Map from this app's stored entries (date → info).
+  const buildJournalData = (): Map<string, JournalDayData> => {
+    const map = new Map<string, JournalDayData>();
+    pagesRef.current.forEach((html, i) => {
+      const dateStr = dates[i];
+      if (!dateStr) return;
+      const text = htmlToText(html).trim();
+      const wc = text ? text.split(/\s+/).length : 0;
+      const hasJournal = text.length > 0;
+      const prev = map.get(dateStr);
+      if (prev) {
+        map.set(dateStr, {
+          ...prev,
+          text: prev.text || text.slice(0, 140),
+          hasJournal: prev.hasJournal || hasJournal,
+          wordCount: prev.wordCount + wc,
+        });
+      } else {
+        map.set(dateStr, {
+          text: text.slice(0, 140),
+          hasJournal,
+          wordCount: wc,
+          metrics: { netPL: 0, trades: 0, winRate: null, profitFactor: null },
+        });
+      }
+    });
+    return map;
+  };
+
+  // Click a day → open that date's entry, else a provisional (unsaved) one.
+  const openDateEntry = (d: Date) => {
+    const key = `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(d.getDate()).padStart(2, "0")}`;
+    setView("editor"); // go to STATE 2
+    const idx = dates.findIndex((x) => x === key);
+    // already on the provisional for this date → nothing to do
+    if (idx >= 0 && idx === provisionalRef.current) return;
+    if (idx >= 0) {
+      goTo(idx); // open the existing (real) entry
+      return;
+    }
+    // no entry for that date → open a provisional, persisted only once typed
+    startProvisional(key);
+  };
+
+  // ── export / share ──────────────────────────────────────────────────────
+  const turndown = useRef<TurndownService | null>(null);
+  if (!turndown.current) {
+    const td = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced",
+      bulletListMarker: "-",
+    });
+    td.addRule("taskItems", {
+      filter: (node) =>
+        node.nodeName === "LI" && node.getAttribute("data-type") === "taskItem",
+      replacement: (_c, node) => {
+        const checked =
+          (node as HTMLElement).getAttribute("data-checked") === "true";
+        const text = (node.textContent || "").trim();
+        return `- [${checked ? "x" : " "}] ${text}\n`;
+      },
+    });
+    // Content tables → GFM markdown tables (Turndown drops <table> by default).
+    // The first row is treated as the header; cell text is flattened + escaped.
+    td.addRule("contentTable", {
+      filter: "table",
+      replacement: (_c, node) => {
+        const el = node as HTMLElement;
+        const rows = Array.from(el.querySelectorAll("tr"));
+        if (!rows.length) return "";
+        const cellText = (cell: Element) =>
+          (cell.textContent || "").trim().replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+        const toLine = (cells: Element[]) =>
+          "| " + cells.map(cellText).join(" | ") + " |";
+        // vertical (label–value) tables have a <th> leading EVERY row → emit a
+        // neutral Field/Value header instead of promoting the first data pair
+        const isVertical =
+          rows.length > 0 &&
+          rows.every((r) => {
+            const cs = Array.from(r.children);
+            return (
+              cs.length >= 2 &&
+              cs[0].tagName === "TH" &&
+              cs.slice(1).some((x) => x.tagName === "TD")
+            );
+          });
+        let lines: string[];
+        if (isVertical) {
+          lines = [
+            "| Field | Value |",
+            "| --- | --- |",
+            ...rows.map((r) => toLine(Array.from(r.children))),
+          ];
+        } else {
+          const header = Array.from(rows[0].children);
+          lines = [
+            toLine(header),
+            "| " + header.map(() => "---").join(" | ") + " |",
+            ...rows.slice(1).map((r) => toLine(Array.from(r.children))),
+          ];
+        }
+        return "\n\n" + lines.join("\n") + "\n\n";
+      },
+    });
+    turndown.current = td;
+  }
+
+  const currentHtml = () => {
+    if (editor) pagesRef.current[page] = editor.getHTML();
+    return pagesRef.current[page] ?? "";
+  };
+  const fileSlug = () =>
+    (titles[page] || "entry").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "") ||
+    "entry";
+
+  const copyMarkdown = () =>
+    navigator.clipboard?.writeText(turndown.current!.turndown(currentHtml()));
+  const copyText = () => navigator.clipboard?.writeText(htmlToText(currentHtml()));
+  const downloadMarkdown = () => {
+    const blob = new Blob([turndown.current!.turndown(currentHtml())], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileSlug()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const printEntry = () => {
+    const w = window.open("", "_blank", "width=820,height=1040");
+    if (!w) return;
+    const title = titles[page] || "Entry";
+    w.document.write(
+      `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
+        `<style>` +
+        `body{font-family:Inter,system-ui,sans-serif;color:#1f2024;max-width:680px;margin:48px auto;padding:0 24px;line-height:1.7}` +
+        `h1{font-size:1.9rem;letter-spacing:-0.02em;margin:0 0 1rem}` +
+        `h2{font-size:1.15rem;margin:1.6rem 0 .4rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}` +
+        `blockquote{border-left:3px solid #ddd;padding-left:1rem;color:#555;margin:.6rem 0}` +
+        `pre{background:#f5f5f5;padding:.8rem 1rem;border-radius:8px;overflow:auto}` +
+        `code{background:#f0f0f0;padding:.1em .35em;border-radius:4px;font-size:.9em}` +
+        `pre code{background:none;padding:0}` +
+        `ul[data-type=taskList]{list-style:none;padding-left:.2rem}` +
+        `ul[data-type=taskList] li{display:flex;gap:.5rem;align-items:flex-start}` +
+        `table{border-collapse:collapse;width:100%;margin:.8rem 0;font-size:.95em}` +
+        `th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;vertical-align:top}` +
+        `th{background:#f5f5f5;font-weight:600}` +
+        `div[data-type=callout]{display:flex;gap:.6rem;padding:.7rem .9rem;border-radius:8px;background:#f4f4f5;border:1px solid #e6e6e6;margin:.6rem 0}` +
+        `span[data-type=tag]{display:inline-block;padding:.05em .5em;border-radius:999px;background:#eee;font-size:.85em;margin:0 .1em}` +
+        `div[data-type=toggle][data-open=false] > *:not(:first-child){display:none}` +
+        `span[data-type=icon]{display:inline}` +
+        `img{max-width:100%}` +
+        `</style></head><body>${currentHtml()}</body></html>`
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
+  // ⌘K / Ctrl+K opens spotlight search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        openSpotlight();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, page]);
+
+  // formatting commands routed through TipTap
+  const toggle = {
+    bold: () => editor?.chain().focus().toggleBold().run(),
+    italic: () => editor?.chain().focus().toggleItalic().run(),
+    underline: () => editor?.chain().focus().toggleUnderline().run(),
+    strike: () => editor?.chain().focus().toggleStrike().run(),
+    bullets: () => editor?.chain().focus().toggleBulletList().run(),
+    emoji: () => editor?.chain().focus().insertContent("😊").run(),
+  };
+  const undo = () => editor?.chain().focus().undo().run();
+  const redo = () => editor?.chain().focus().redo().run();
+
+  // ── templates ─────────────────────────────────────────────────────────────
+  // user-made templates come first, then the built-ins
+  const allTemplates: JournalTemplate[] = [...customTemplates, ...TEMPLATES];
+
+  const applyTemplate = (t: JournalTemplate) => {
+    editor?.chain().focus().insertContent(t.html).run();
+    setTemplatesOpen(false);
+  };
+
+  // enter the inline authoring loadout: a blank editor + the normal controls
+  const startCustomTemplate = () => {
+    setTemplatesOpen(false);
+    setView("editor");
+    startProvisional(dates[page] ?? DEFAULT_DATE); // blank, in-memory draft
+    setDraftName("");
+    setAuthoring(true);
+  };
+  const saveCustomTemplate = () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    const t: JournalTemplate = {
+      id: `custom-${String(Date.now())}`,
+      name: draftName.trim() || "My template",
+      description: "Custom template",
+      accent: "#0066ff",
+      html,
+    };
+    setCustomTemplates((prev) => {
+      const next = [t, ...prev];
+      try {
+        localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    toggleTemplateFav(t.id, true); // surface it in the palette Templates section
+    setAuthoring(false);
+    forceRemoveProvisional();
+    setView("calendar");
+  };
+  const cancelCustomTemplate = () => {
+    setAuthoring(false);
+    forceRemoveProvisional();
+    setView("calendar");
+  };
+  const deleteCustomTemplate = (id: string) => {
+    setCustomTemplates((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      try {
+        localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    toggleTemplateFav(id, false);
+  };
+  const toggleTemplateFav = (id: string, fav: boolean) => {
+    setTemplateFavs((prev) => {
+      const next = fav
+        ? [id, ...prev.filter((x) => x !== id)]
+        : prev.filter((x) => x !== id);
+      try {
+        localStorage.setItem(TEMPLATE_FAVS_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+  const favTemplates = templateFavs
+    .map((id) => allTemplates.find((t) => t.id === id))
+    .filter((t): t is JournalTemplate => !!t);
+
+  // applied as CSS vars on the paper; the .ProseMirror editable reads them so
+  // font/size/spacing reliably hit the text (not just the wrapper).
+  const editorStyle = {
+    ["--ed-font"]: FONTS[font].value,
+    ["--ed-size"]: sizePx(sizeV),
+    // px (not unitless) so the Line slider controls spacing on its own and the
+    // Size slider doesn't drag line spacing along with the font size
+    ["--ed-lh"]: `${(lineHeight(spacingV) * 18).toFixed(1)}px`,
+    ["--ed-ls"]: trackingEm(trackingV),
+  } as CSSProperties;
+
+  // font + size apply to the selection (TipTap marks); with nothing selected they
+  // set the whole-doc default. Controls reflect the selection when there is one.
+  const ts = editor?.getAttributes("textStyle") ?? {};
+  const hasSelection = !!editor && !editor.state.selection.empty;
+  const selFontIdx = FONTS.findIndex((f) => f.value === ts.fontFamily);
+  const displayFontIdx = selFontIdx >= 0 ? selFontIdx : font;
+  const selSizeV =
+    typeof ts.fontSize === "string"
+      ? Math.min(1, Math.max(0, (parseFloat(ts.fontSize) - 13) / 9))
+      : null;
+  const displaySizeV = hasSelection && selSizeV != null ? selSizeV : sizeV;
+  const selTrackingV =
+    typeof ts.letterSpacing === "string"
+      ? Math.min(1, Math.max(0, parseFloat(ts.letterSpacing) / 0.16 + 0.25))
+      : null;
+  const displayTrackingV =
+    hasSelection && selTrackingV != null ? selTrackingV : trackingV;
+
+  const pickFont = (i: number) => {
+    if (hasSelection)
+      editor?.chain().focus().setFontFamily(FONTS[i].value).run();
+    else setFont(i);
+  };
+  const pickSize = (v: number) => {
+    if (hasSelection) editor?.chain().focus().setFontSize(sizePx(v)).run();
+    else setSizeV(v);
+  };
+  const pickTracking = (v: number) => {
+    if (hasSelection)
+      editor?.chain().focus().setLetterSpacing(trackingEm(v)).run();
+    else setTrackingV(v);
+  };
+
+  // track the block under the cursor → position the ⠿ hover handle.
+  // targets the most specific block: each list ITEM (not the whole list), each
+  // top-level paragraph/heading, or a callout as a whole.
+  const onPaperMove = (e: React.MouseEvent) => {
+    if (!editor || blockMenu) return;
+    const found = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+    if (!found) return; // keep the current handle (avoids flicker over the grip)
+    const $pos = editor.state.doc.resolve(found.pos);
+    // tables are driven by TableMenu, not the block grip — never grab one
+    for (let d = $pos.depth; d >= 1; d--) {
+      if ($pos.node(d).type.name === "table") {
+        setBlockHandle(null);
+        return;
+      }
+    }
+    const LISTS = new Set(["bulletList", "orderedList", "taskList"]);
+    let target = -1;
+    for (let d = $pos.depth; d >= 1; d--) {
+      const parent = $pos.node(d - 1);
+      if (parent.type.name === "doc" || LISTS.has(parent.type.name)) {
+        target = $pos.before(d);
+        break;
+      }
+    }
+    if (target < 0) return;
+    const dom = editor.view.nodeDOM(target);
+    if (!(dom instanceof HTMLElement)) return;
+    const rect = dom.getBoundingClientRect();
+    // anchor the grip to the text column's left edge (not the block's), so it
+    // sits in the gutter and never overlaps a bullet / number / checkbox
+    const pmLeft = (editor.view.dom as HTMLElement).getBoundingClientRect().left;
+    // vertical center of the block's FIRST line (line-height is taller than the
+    // glyphs, so the text sits lower than the block top) → grip lines up with it
+    const cs = getComputedStyle(dom);
+    const lh = parseFloat(cs.lineHeight);
+    const lineH = Number.isFinite(lh) ? lh : rect.height;
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const center = rect.top + padTop + lineH / 2;
+    setBlockHandle((prev) =>
+      prev && prev.pos === target
+        ? prev
+        : { top: center, left: pmLeft, pos: target }
+    );
+  };
+  const blockHandleElRef = useRef<HTMLButtonElement | null>(null);
+  const onPaperLeave = (e: React.MouseEvent) => {
+    if (blockMenu) return;
+    const rt = e.relatedTarget as Node | null;
+    // moving onto the grip itself shouldn't dismiss it
+    if (rt && blockHandleElRef.current?.contains(rt)) return;
+    setBlockHandle(null);
+  };
+
+  // highlighting text opens the block action menu (Turn into · Color · … · Ask AI)
+  // anchored to the block holding the selection, positioned at the selection rect
+  const openBlockMenuFromSelection = () => {
+    if (!editor) return;
+    const sel = editor.state.selection;
+    if (sel.empty) return;
+    const $pos = sel.$from;
+    // let TableMenu handle tables — don't open the block menu on a cell
+    for (let d = $pos.depth; d >= 1; d--) {
+      if ($pos.node(d).type.name === "table") return;
+    }
+    const LISTS = new Set(["bulletList", "orderedList", "taskList"]);
+    let pos = -1;
+    for (let d = $pos.depth; d >= 1; d--) {
+      const parent = $pos.node(d - 1);
+      if (parent.type.name === "doc" || LISTS.has(parent.type.name)) {
+        pos = $pos.before(d);
+        break;
+      }
+    }
+    if (pos < 0) return;
+    const domSel = window.getSelection();
+    let x = 0;
+    let top = 0;
+    let bottom = 0;
+    if (domSel && domSel.rangeCount) {
+      const r = domSel.getRangeAt(0).getBoundingClientRect();
+      x = r.left;
+      top = r.top;
+      bottom = r.bottom;
+    }
+    setBlockHandle(null);
+    setBlockMenu({ x, top, bottom, pos });
+  };
+
+  // block menu "Ask AI" → select the block's text and show the AI rewrite menu
+  const showAIForBlock = (pos: number) => {
+    if (!editor) return;
+    const node = editor.state.doc.nodeAt(pos);
+    if (!node) return;
+    const from = pos + 1;
+    const to = pos + node.nodeSize - 1;
+    if (to <= from) return;
+    editor.chain().focus().setTextSelection({ from, to }).run();
+    setBlockMenu(null);
+    requestAnimationFrame(() => {
+      const sel = window.getSelection();
+      let x = window.innerWidth / 2;
+      let y = 140;
+      if (sel && sel.rangeCount) {
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        if (r.width || r.height) {
+          x = r.left + r.width / 2;
+          y = r.top - 8;
+        }
+      }
+      const text = editor.state.doc.textBetween(from, to, " ");
+      setMenu({ x, y, text });
+    });
+  };
+
+  // entries as date rows for the drawer — only days with real content, newest first
+  const navEntries: NavEntry[] = dates
+    .map((date, i) => ({
+      index: i,
+      date,
+      text: htmlToText(pagesRef.current[i] ?? ""),
+    }))
+    .filter((e) => e.text.length > 0 && e.index !== provisionalIndex)
+    .sort((a, b) =>
+      a.date < b.date ? 1 : a.date > b.date ? -1 : b.index - a.index
+    )
+    .map((e) => ({
+      index: e.index,
+      date: e.date,
+      label: fmtDateLabel(e.date),
+      title: titles[e.index] || "",
+      snippet: e.text.slice(0, 70),
+    }));
+
+  // current day's pages, for the book arrows + the "n / m" page count
+  const daySiblings = daySiblingsOf(page);
+  const dayPos = daySiblings.indexOf(page);
+  const realSiblings = daySiblings.filter((i) => i !== provisionalIndex);
+  const realPos = realSiblings.indexOf(page);
+
+  // wire the PageLink node to the live entry list + navigation
+  navEntriesRef.current = navEntries;
+  openPageLinkRef.current = (date: string, title: string) => {
+    let idx = dates.findIndex(
+      (d, i) => d === date && (titles[i] || "") === title && i !== provisionalIndex
+    );
+    if (idx < 0) idx = dates.findIndex((d) => d === date);
+    if (idx < 0) return;
+    if (view !== "editor") setView("editor");
+    goTo(idx);
+  };
+
+  return (
+    <div
+      className="flex h-screen flex-col"
+      style={
+        {
+          ["--accent" as string]: THEMES[theme].accent,
+          background: "var(--panel-bg)",
+        } as CSSProperties
+      }
+    >
+      <SelectionMenu menu={menu} onAI={runAI} onClose={() => setMenu(null)} />
+      {blockMenu && editor && (
+        <BlockMenu
+          editor={editor}
+          pos={blockMenu.pos}
+          anchor={{ x: blockMenu.x, top: blockMenu.top, bottom: blockMenu.bottom }}
+          onAskAI={showAIForBlock}
+          onClose={() => {
+            setBlockMenu(null);
+            setBlockHandle(null);
+          }}
+        />
+      )}
+      {templatesOpen && (
+        <TemplateGallery
+          templates={allTemplates}
+          favorites={new Set(templateFavs)}
+          onToggleFavorite={toggleTemplateFav}
+          onApply={applyTemplate}
+          onCreate={startCustomTemplate}
+          onDelete={deleteCustomTemplate}
+          onClose={() => setTemplatesOpen(false)}
+        />
+      )}
+      <NikkiPanel
+        open={nikkiOpen}
+        onClose={() => setNikkiOpen(false)}
+        assistantName={ASSISTANT_NAME}
+      />
+      <AppearancePanel
+        open={appearanceOpen}
+        onClose={() => setAppearanceOpen(false)}
+        theme={uiTheme}
+        accent={accent}
+        onSelectTheme={setUiTheme}
+        onSelectAccent={setAccent}
+      />
+      {aiBusy && (
+        <div className="fixed left-1/2 top-5 z-[500] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-elevated px-4 py-2 text-[13px] font-medium text-text shadow-lg">
+          <Loader2 size={15} className="animate-spin text-[var(--alltra-brand)]" />
+          Rewriting with AI…
+        </div>
+      )}
+      {trashOpen && (
+        <TrashModal
+          trash={trash}
+          onRestore={restoreEntry}
+          onDeleteForever={deleteForever}
+          onEmpty={emptyTrash}
+          onClose={() => setTrashOpen(false)}
+        />
+      )}
+      {spotlightOpen && (
+        <SpotlightModal
+          entries={titles.map((t, i) => ({
+            index: i,
+            title: t || "Untitled",
+            date: dates[i] ?? "",
+            text: htmlToText(pagesRef.current[i] ?? ""),
+          }))}
+          onPick={(i) => {
+            goTo(i);
+            setSpotlightOpen(false);
+          }}
+          onClose={() => setSpotlightOpen(false)}
+        />
+      )}
+      <AppSidebar
+        currentApp={currentApp}
+        onSwitchApp={setCurrentApp}
+        mobileOpen={navOpen}
+      />
+
+      {/* Alltra v3 section sidebar (right of the 64px app rail) */}
+      <AlltraSideNav
+        section={activeSection}
+        onSelect={(id) => {
+          if (id === "journal") {
+            setPreviewSection(null);
+            goEditor();
+          } else if (id === "calendar") {
+            setPreviewSection(null);
+            goCalendar();
+          } else {
+            setPreviewSection(id);
+          }
+        }}
+        onSearch={openSpotlight}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        journal={{
+          entries: navEntries,
+          currentPage: page,
+          onSelectEntry: (i) => {
+            setPreviewSection(null);
+            goEditor();
+            goTo(i);
+          },
+          onNewEntry: () => {
+            setPreviewSection(null);
+            goEditor();
+            newEntry();
+          },
+          onOpenNotes: () => {
+            setPreviewSection(null);
+            goNotes();
+          },
+          newDisabled: dayIsFull,
+        }}
+      />
+
+      {/* everything to the right of the app rail + section sidebar */}
+      <div
+        className="relative flex h-screen flex-col"
+        style={{
+          marginLeft: isMobile
+            ? APP_SIDEBAR_WIDTH
+            : APP_SIDEBAR_WIDTH +
+              (sidebarCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED),
+          transition: "margin-left 0.24s cubic-bezier(0.22,0.61,0.36,1)",
+        }}
+      >
+        {/* ── primary top bar (TopNavbar) ───────────────────────────────── */}
+        <header
+          className="flex items-center gap-3 px-4"
+          style={{
+            height: 52,
+            background: "var(--surface-2)",
+            borderBottom: "1px solid var(--border-2)",
+          }}
+        >
+          {/* mobile nav toggle */}
+          <button
+            onClick={() => setNavOpen((o) => !o)}
+            title="Menu"
+            className="grid h-7 w-7 place-items-center rounded-md bg-text text-[var(--surface-1)] md:hidden"
+          >
+            <PanelLeft size={15} />
+          </button>
+
+          {/* left — breadcrumb (Journal ▸ entry) */}
+          <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
+            <span className="hidden items-center gap-1.5 sm:flex">
+              <button
+                onClick={goEditor}
+                className="font-medium text-text-muted transition-colors hover:text-text"
+              >
+                Journal
+              </button>
+              <ChevronRight size={14} className="shrink-0 text-text-faint" />
+            </span>
+            <span className="truncate font-semibold text-text">
+              {view === "editor"
+                ? titles[page] || "Untitled"
+                : previewSection
+                  ? previewSection.charAt(0).toUpperCase() + previewSection.slice(1)
+                  : view === "calendar"
+                    ? "Calendar"
+                    : view === "notes"
+                      ? "Notes"
+                      : "Journal"}
+            </span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {/* entry-scoped controls — only while an entry is actually visible */}
+            {view === "editor" && !previewSection && (
+              <>
+                {/* draft / logged pill */}
+                <span
+                  className="rounded-[8px] px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    color: loggedEntries.has(page)
+                      ? "var(--success)"
+                      : "var(--text-muted)",
+                    background: loggedEntries.has(page)
+                      ? "color-mix(in srgb, var(--success) 16%, transparent)"
+                      : "var(--alpha-6)",
+                  }}
+                >
+                  {loggedEntries.has(page) ? "Logged" : "Draft"}
+                </span>
+                {/* mark as logged / reopen */}
+                <button
+                  onClick={() => toggleLoggedEntry(page)}
+                  className="hidden items-center gap-1.5 rounded-[8px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-text shadow-sm transition-colors hover:bg-card-hover sm:flex"
+                >
+                  {loggedEntries.has(page) ? (
+                    <>
+                      <Pencil size={14} /> Reopen
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} /> Mark as logged
+                    </>
+                  )}
+                </button>
+                {/* delete entry */}
+                <button
+                  onClick={() => deleteEntry(page)}
+                  title="Delete entry"
+                  className="grid h-8 w-8 place-items-center rounded-[8px] border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-[var(--warning)]"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </>
+            )}
+            <ShareMenu
+              onCopyMarkdown={copyMarkdown}
+              onDownloadMarkdown={downloadMarkdown}
+              onCopyText={copyText}
+              onPrint={printEntry}
+            />
+            {/* notes + trash — desktop only (mobile reaches them via the nav drawer) */}
+            <span className="hidden md:contents">
+              <ChromeBtn title="Notes" onClick={goNotes}>
+                <StickyNote size={16} />
+              </ChromeBtn>
+              <button
+                onClick={() => setTrashOpen(true)}
+                title="Trash"
+                className="relative grid h-8 w-8 place-items-center rounded-[8px] text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+              >
+                <Trash2 size={16} />
+                {trash.length > 0 && (
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--warning)]" />
+                )}
+              </button>
+            </span>
+            {/* appearance */}
+            <ChromeBtn title="Appearance" onClick={() => setAppearanceOpen(true)}>
+              <Palette size={16} />
+            </ChromeBtn>
+            {/* widgets panel opener (mobile/tablet) */}
+            <button
+              onClick={() => setPanelOpen(true)}
+              title="Panel"
+              className="grid h-8 w-8 place-items-center rounded-[8px] text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text lg:hidden"
+            >
+              <PanelRight size={16} />
+            </button>
+            {/* new entry — always lands on the editor; disabled when the day is full */}
+            <button
+              onClick={() => {
+                setPreviewSection(null);
+                goEditor();
+                newEntry();
+              }}
+              disabled={dayIsFull}
+              title={dayIsFull ? "10 entries max per day" : "New entry"}
+              className="grid h-8 w-8 place-items-center rounded-[8px] bg-[var(--alltra-brand)] text-[var(--on-brand)] shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
+            >
+              <Plus size={16} />
+            </button>
+            {/* accounts — decorative in this single-user app, so a static chip
+                (tinted with the theme accent to match the brand controls) */}
+            <span className="hidden items-center gap-1.5 rounded-[8px] border border-[color-mix(in_srgb,var(--alltra-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--alltra-brand)_16%,transparent)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--alltra-brand)] md:inline-flex">
+              Accounts · 1
+            </span>
+            {/* avatar → appearance */}
+            <button
+              onClick={() => setAppearanceOpen(true)}
+              aria-label="Appearance"
+              title="Appearance"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--alltra-brand)] text-[12px] font-semibold text-[var(--on-brand)]"
+            >
+              H
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile nav drawer — hoisted out of the editor container so the "Menu"
+            button works on every view (calendar / notes / editor). md:hidden. */}
+        {navOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-[455] bg-black/30 md:hidden"
+              onClick={() => setNavOpen(false)}
+            />
+            <NavDrawer
+              className="nav-slide-in fixed bottom-0 left-[64px] top-0 z-[460] flex shadow-lg md:hidden"
+              entries={navEntries}
+              page={page}
+              expanded
+              onClose={() => setNavOpen(false)}
+              onSelect={(i) => {
+                goTo(i);
+                setNavOpen(false);
+              }}
+              onNew={() => {
+                newEntry();
+                setNavOpen(false);
+              }}
+              newDisabled={dayIsFull}
+              onSearch={() => {
+                openSpotlight();
+                setNavOpen(false);
+              }}
+              onRename={renameEntry}
+              onDelete={deleteEntry}
+              trashCount={trash.length}
+              onOpenTrash={() => {
+                setTrashOpen(true);
+                setNavOpen(false);
+              }}
+              onOpenCalendar={() => {
+                goCalendar();
+                setNavOpen(false);
+              }}
+              onOpenNotes={() => {
+                goNotes();
+                setNavOpen(false);
+              }}
+              onFavorite={toggleFavEntry}
+              favoriteIds={favEntries}
+            />
+          </>
+        )}
+
+        {/* Preview placeholder for Alltra sections the journal doesn't implement */}
+        {previewSection && (
+          <div
+            className="absolute inset-x-0 bottom-0 z-[120] flex flex-col items-center justify-center gap-3 px-6 text-center"
+            style={{ top: 52, background: "var(--panel-bg)" }}
+          >
+            <span
+              className="grid h-16 w-16 place-items-center rounded-2xl text-white"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, var(--alltra-brand) 0%, var(--accent-hover) 100%)",
+              }}
+            >
+              <Sparkles size={26} />
+            </span>
+            <h2 className="text-[19px] font-semibold tracking-tight text-text">
+              {previewSection.charAt(0).toUpperCase() + previewSection.slice(1)}
+            </h2>
+            <p className="max-w-sm text-[13px] leading-relaxed text-text-muted">
+              This Alltra section isn&apos;t wired into your journal yet — it&apos;s
+              here so you can preview the full v3 layout.
+            </p>
+            <button
+              onClick={() => {
+                setPreviewSection(null);
+                goEditor();
+              }}
+              className="mt-1 rounded-lg bg-[var(--alltra-brand)] px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            >
+              Back to Journal
+            </button>
+          </div>
+        )}
+
+        {/* STATE 2 — editor + drawer + right controls (kept mounted; hidden on calendar home) */}
+        <div
+          className="flex flex-1 overflow-hidden"
+          style={{ display: view === "editor" ? "flex" : "none" }}
+        >
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* ── secondary page toolbar (SecondaryTopNavbar) ───────────── */}
+            <div
+              className="flex items-center px-6"
+              style={{
+                height: 48,
+                background: "var(--surface-2)",
+                borderBottom: "1px solid var(--border-2)",
+              }}
+            >
+              {authoring ? (
+                <div className="flex w-full items-center gap-3">
+                  <LayoutTemplate
+                    size={15}
+                    className="text-[var(--alltra-brand)]"
+                  />
+                  <span className="text-[13.5px] font-semibold text-text">
+                    New template
+                  </span>
+                  <input
+                    autoFocus
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    placeholder="Template name"
+                    className="w-[220px] rounded-md border border-border bg-card px-2.5 py-1 text-[13px] text-text outline-none placeholder:text-text-faint focus:border-[var(--alltra-brand)]"
+                  />
+                  <span className="hidden text-[12px] text-text-faint lg:inline">
+                    Build it below with the editor &amp; controls, then save.
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={cancelCustomTemplate}
+                      className="rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] font-medium text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveCustomTemplate}
+                      className="flex items-center gap-1.5 rounded-lg bg-[var(--alltra-brand)] px-3 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+                    >
+                      <Sparkles size={14} /> Save template
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+              <div className="flex items-center gap-2 text-[13.5px]">
+                <input
+                  type="date"
+                  value={dates[page] ?? DEFAULT_DATE}
+                  onChange={(e) => {
+                    setDates((d) => {
+                      const n = [...d];
+                      n[page] = e.target.value;
+                      return n;
+                    });
+                    schedulePersist();
+                  }}
+                  className="rounded-md bg-transparent px-1 py-0.5 text-[12.5px] text-text-muted outline-none transition-colors hover:bg-[var(--hover-overlay)] focus:bg-[var(--hover-overlay)]"
+                />
+                <span className="rounded bg-[var(--hover-overlay-medium)] px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-text-faint">
+                  Beta
+                </span>
+              </div>
+
+              <div className="ml-auto flex items-center gap-2">
+                <span
+                  className={
+                    "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " +
+                    (isSaved
+                      ? "bg-[var(--hover-overlay)] text-text-muted"
+                      : "bg-[var(--warning-bg)] text-[var(--warning)]")
+                  }
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: isSaved ? "#22c55e" : "var(--warning)",
+                    }}
+                  />
+                  {isSaved ? "Saved" : "Saving…"}
+                </span>
+                <ChromeBtn title="Undo" onClick={undo}>
+                  <ArrowLeft size={15} />
+                </ChromeBtn>
+                <ChromeBtn title="Redo" onClick={redo}>
+                  <ArrowRight size={15} />
+                </ChromeBtn>
+              </div>
+              </>
+              )}
+            </div>
+
+            {/* canvas — editor paper + right widget float together on the soft canvas */}
+            <div className="flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] p-6">
+              <main className="flex flex-1 justify-center overflow-hidden">
+                <div className="flex h-full w-full max-w-[1500px] flex-col items-center pb-5">
+                  {/* arrows flank the sheet, book-style */}
+                  <div className="flex h-full w-full items-center gap-3">
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goDay(-1)}
+                      disabled={
+                        page === provisionalIndex ? dayPos <= 0 : realPos <= 0
+                      }
+                      title="Previous entry (this day)"
+                      className="relative z-20 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
+                    >
+                      <ChevronLeft size={19} />
+                    </button>
+
+                    {/* paper stack — a sheet inside a stack of sheets */}
+                    <div className="paper-stack relative h-full min-w-0 flex-1">
+                      <div className="stack-sheet s2" />
+                      <div className="stack-sheet s1" />
+                      <div
+                        ref={paperRef}
+                        className="journal relative z-10 flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-border bg-[var(--surface-2)] text-text shadow-md"
+                        style={editorStyle}
+                      >
+                        <div
+                          className="hide-scrollbar flex-1 overflow-y-auto px-20 py-16"
+                          onMouseMove={onPaperMove}
+                          onMouseLeave={onPaperLeave}
+                          onMouseUp={openBlockMenuFromSelection}
+                        >
+                          <EditorContent editor={editor} />
+                          {view === "editor" && <TableMenu editor={editor} />}
+                        </div>
+                        {/* hover handle — portaled to <body> so its fixed
+                            position resolves to the viewport (the paper-stack's
+                            `perspective` would otherwise contain it) */}
+                        {blockHandle &&
+                          !blockMenu &&
+                          createPortal(
+                            <button
+                              ref={blockHandleElRef}
+                              // keep the editor focused / selection intact when
+                              // opening the menu — otherwise selection-dependent
+                              // actions (Ask AI, etc.) see an empty selection
+                              onMouseDown={(e) => e.preventDefault()}
+                              style={{
+                                position: "fixed",
+                                top: blockHandle.top - 12, // grip is 24px → center on the line
+                                left: blockHandle.left - 30,
+                                zIndex: 50,
+                              }}
+                              onMouseLeave={(e) => {
+                                const rt = e.relatedTarget as Node | null;
+                                if (!rt || !paperRef.current?.contains(rt))
+                                  setBlockHandle(null);
+                              }}
+                              onClick={() =>
+                                setBlockMenu({
+                                  x: blockHandle.left - 30,
+                                  top: blockHandle.top,
+                                  bottom: blockHandle.top + 24,
+                                  pos: blockHandle.pos,
+                                })
+                              }
+                              title="Block actions"
+                              className="grid h-6 w-6 place-items-center rounded-md text-text-faint transition-colors hover:bg-[var(--hover-overlay)] hover:text-text"
+                            >
+                              <GripVertical size={15} />
+                            </button>,
+                            document.body
+                          )}
+                        <span className="pointer-events-none absolute bottom-3.5 right-6 text-[12px] font-medium tabular-nums text-text-faint">
+                          {provisionalIndex !== null && page === provisionalIndex
+                            ? realSiblings.length > 0
+                              ? `New · ${realSiblings.length + 1} / ${realSiblings.length + 1}`
+                              : "New"
+                            : `${realPos + 1} / ${realSiblings.length}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goDay(1)}
+                      disabled={
+                        page === provisionalIndex
+                          ? true
+                          : realPos >= realSiblings.length - 1
+                      }
+                      title="Next entry (this day)"
+                      className="relative z-20 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
+                    >
+                      <ChevronRight size={19} />
+                    </button>
+                  </div>
+                </div>
+              </main>
+
+              {panelOpen && (
+                <div
+                  className="fixed inset-0 z-[455] bg-black/30 lg:hidden"
+                  onClick={() => setPanelOpen(false)}
+                />
+              )}
+              {/* collapsed → floating expand button on the screen's right edge */}
+              {rightCollapsed && (
+                <button
+                  onClick={() => setRightCollapsed(false)}
+                  title="Show panel"
+                  className="fixed right-3 top-1/2 z-30 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-text-muted shadow-md transition-colors hover:bg-card-hover hover:text-text lg:grid"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              )}
+              {/* right side — inline widgets on lg+, slide-over drawer below lg */}
+              <div
+                className={
+                  "relative flex min-h-0 shrink-0 flex-col gap-6 pb-5 " +
+                  "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 " +
+                  (rightCollapsed
+                    ? "lg:w-0 lg:overflow-hidden lg:opacity-0 "
+                    : "lg:w-[420px] xl:w-[560px] 2xl:w-[621px] ") +
+                  "max-lg:fixed max-lg:right-0 max-lg:top-[100px] max-lg:bottom-0 max-lg:z-[460] max-lg:w-[621px] max-lg:max-w-[94vw] max-lg:overflow-y-auto max-lg:bg-[var(--panel-bg)] max-lg:p-4 max-lg:shadow-lg max-lg:transition-transform " +
+                  (panelOpen ? "max-lg:translate-x-0" : "max-lg:translate-x-full")
+                }
+              >
+              {/* collapse button — top-right of the panel (desktop only) */}
+              <button
+                onClick={() => setRightCollapsed(true)}
+                title="Collapse panel"
+                className="absolute right-4 top-5 z-30 hidden h-8 w-8 place-items-center rounded-lg border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text lg:grid"
+              >
+                <PanelRight size={16} />
+              </button>
+              {/* Daily Performance widget — temporarily hidden from the UI.
+                  Restore by switching `false` back to `showDailyPerf`. */}
+              {false && showDailyPerf && (
+                <DailyPerformance
+                  className="shrink-0"
+                  onRemove={() => setShowDailyPerf(false)}
+                />
+              )}
+              <aside className="hide-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto rounded-[20px] border border-border bg-card px-8 py-7 shadow-sm">
+            {/* theme style — always first */}
+            <section>
+              <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
+                Theme Style
+              </h3>
+              <div className="grid grid-cols-5 gap-2.5">
+                {THEMES.map((t, i) => (
+                  <button
+                    key={t.name}
+                    onClick={() => {
+                      setTheme(i);
+                      setFont(t.font);
+                    }}
+                    title={`${t.name} · ${FONTS[t.font].label}`}
+                    className={`relative grid h-[72px] place-items-center rounded-2xl border shadow-sm ${t.bg} ${
+                      theme === i ? "border-border-strong" : "border-border"
+                    }`}
+                  >
+                    <span
+                      className={`text-xl font-semibold ${t.fg}`}
+                      style={{ fontFamily: FONTS[t.font].value }}
+                    >
+                      Aa
+                    </span>
+                    {theme === i && (
+                      <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-text text-[var(--surface-1)]">
+                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                          <path
+                            d="M2.5 6.2 4.8 8.5 9.5 3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div className="border-t border-dashed border-border" />
+
+            {/* text editor */}
+            <section>
+              <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
+                Text Editor
+              </h3>
+              <div className="flex gap-2.5">
+                {/* left: font card + bold/italic/underline */}
+                <div className="flex flex-1 flex-col gap-2.5">
+                  <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <span
+                      className="text-3xl font-semibold text-text"
+                      style={{ fontFamily: FONTS[displayFontIdx].value }}
+                    >
+                      Aa
+                    </span>
+                    <div className="my-3.5 border-t border-border" />
+                    <span className="text-[12px] font-medium text-text-muted">
+                      Customize font
+                    </span>
+                    <div className="relative mt-2 flex items-center justify-between rounded-lg border border-border bg-card-hover px-3 py-2">
+                      <span className="text-[13px] text-text">
+                        {FONTS[displayFontIdx].label}
+                      </span>
+                      <ChevronsUpDown size={13} className="text-text-faint" />
+                      <select
+                        value={displayFontIdx}
+                        onChange={(e) => pickFont(Number(e.target.value))}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                      >
+                        {FONTS.map((f, i) => (
+                          <option key={f.label} value={i}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <Control
+                      shape="circle"
+                      icon={<Bold size={17} />}
+                      label="Bold"
+                      onClick={toggle.bold}
+                      active={!!editor?.isActive("bold")}
+                    />
+                    <Control
+                      shape="circle"
+                      icon={<Italic size={17} />}
+                      label="Italic"
+                      onClick={toggle.italic}
+                      active={!!editor?.isActive("italic")}
+                    />
+                    <Control
+                      shape="circle"
+                      icon={<Underline size={17} />}
+                      label="Underline"
+                      onClick={toggle.underline}
+                      active={!!editor?.isActive("underline")}
+                    />
+                  </div>
+                </div>
+
+                {/* right: Ask Nikki AI button (full width, above the pills) +
+                    Size / Line / Letter drag sliders */}
+                <div className="flex flex-1 flex-col gap-2.5">
+                  <button
+                    onClick={() => setNikkiOpen(true)}
+                    title={`Ask ${ASSISTANT_NAME}`}
+                    className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[var(--alltra-brand)] bg-[rgba(var(--alltra-brand-rgb),0.06)] px-3 py-3 text-[13px] font-semibold text-[var(--alltra-brand)] shadow-sm transition-colors hover:bg-[rgba(var(--alltra-brand-rgb),0.1)]"
+                  >
+                    <Sparkles size={15} /> Ask {ASSISTANT_NAME}
+                  </button>
+
+                  <div className="flex flex-1 gap-2.5">
+                    <div className="flex flex-1">
+                      <VSlider
+                        value={displaySizeV}
+                        onChange={pickSize}
+                        icon={<Type size={17} />}
+                        label="Size"
+                      />
+                    </div>
+                    <div className="flex flex-1">
+                      <VSlider
+                        value={spacingV}
+                        onChange={setSpacingV}
+                        icon={<Rows3 size={17} />}
+                        label="Line"
+                      />
+                    </div>
+                    <div className="flex flex-1">
+                      <VSlider
+                        value={displayTrackingV}
+                        onChange={pickTracking}
+                        icon={<Columns3 size={17} />}
+                        label="Letter"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="border-t border-dashed border-border" />
+
+            {/* pinned — slash commands starred from the "/" menu; newest on top */}
+            <section>
+              <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
+                Pinned
+              </h3>
+              {favorites.length > 0 ? (
+                <PinnedGrid
+                  ids={favorites}
+                  editor={editor}
+                  pinnedSelRef={pinnedSelRef}
+                  onReorder={reorderFavorites}
+                />
+              ) : (
+                <p className="text-[12.5px] leading-relaxed text-text-muted">
+                  Pin commands from the{" "}
+                  <span className="font-medium text-text">/</span> menu and
+                  they&apos;ll show up here.
+                </p>
+              )}
+            </section>
+
+            <div className="border-t border-dashed border-border" />
+
+            {/* templates — favorited ones surface here; browse opens the gallery */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[15px] font-semibold tracking-tight text-text">
+                  Templates
+                </h3>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={startCustomTemplate}
+                    className="flex items-center gap-1.5 rounded-lg border border-[var(--alltra-brand)] bg-[rgba(var(--alltra-brand-rgb),0.06)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--alltra-brand)] shadow-sm transition-colors hover:bg-[rgba(var(--alltra-brand-rgb),0.1)]"
+                  >
+                    <Plus size={14} /> New
+                  </button>
+                  <button
+                    onClick={() => setTemplatesOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-text shadow-sm transition-colors hover:bg-card-hover"
+                  >
+                    <LayoutTemplate size={14} /> Browse
+                  </button>
+                </div>
+              </div>
+              {favTemplates.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {favTemplates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => applyTemplate(t)}
+                      title={t.description}
+                      className="flex items-center gap-2 overflow-hidden rounded-lg border border-border bg-card px-2.5 py-2 text-left shadow-sm transition-colors hover:bg-card-hover"
+                    >
+                      <span
+                        className="h-6 w-1.5 shrink-0 rounded-full"
+                        style={{ background: t.accent }}
+                      />
+                      <span className="truncate text-[12.5px] font-medium text-text">
+                        {t.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12.5px] leading-relaxed text-text-muted">
+                  Star a template in{" "}
+                  <button
+                    onClick={() => setTemplatesOpen(true)}
+                    className="font-medium text-[var(--alltra-brand)] hover:underline"
+                  >
+                    Browse
+                  </button>{" "}
+                  to pin it here.
+                </p>
+              )}
+            </section>
+              </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* STATE 1 — calendar home (the landing view) */}
+        {view === "calendar" && (
+          <div className="flex flex-1 flex-col overflow-y-auto bg-[var(--panel-bg)]">
+            <div className="mx-auto w-full max-w-[1640px] px-8 py-8">
+              <div className="mb-6 flex items-end justify-between gap-4">
+                <div>
+                  <h1 className="text-[22px] font-semibold tracking-tight text-text">
+                    Your journal
+                  </h1>
+                  <p className="mt-1 text-[13.5px] text-text-muted">
+                    Pick a day to open or start an entry.
+                  </p>
+                </div>
+                <button
+                  onClick={goEditor}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-[13px] font-medium text-text shadow-sm transition-colors hover:bg-card-hover"
+                >
+                  Open editor <ArrowRight size={15} />
+                </button>
+              </div>
+
+              {/* top row — Today's Journal + Journal Quality Rating */}
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]">
+                <TodaysJournalWidget
+                  journalData={buildJournalData()}
+                  onOpen={openDateEntry}
+                />
+                <JournalQualityWidget
+                  journalData={buildJournalData()}
+                  onOpen={openDateEntry}
+                />
+              </div>
+
+              {/* bottom — full-width Journal Calendar */}
+              <div className="mt-5">
+                <JournalCalendarWidget
+                  journalData={buildJournalData()}
+                  onOpenJournal={openDateEntry}
+                  initialDate={
+                    dates[page] ? new Date(`${dates[page]}T00:00:00`) : undefined
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STATE 3 — Notes (a separate space from the journal) — same left nav
+            drawer as the editor, content to the right */}
+        {view === "notes" && (
+          <div className="flex flex-1 overflow-hidden">
+            <NotesPage onBack={goCalendar} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

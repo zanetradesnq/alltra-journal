@@ -1,0 +1,1046 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Alltra Desktop design tokens (light) ──────────────────────────────────
+   Values mirror @alltra/design-tokens (packages/design-tokens/dist-css/
+   tokens.css) — the v1 [data-theme] scale. The journal's own aliases are
+   remapped onto these below so the existing build inherits the real palette. */
+:root {
+  /* spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 64px;
+
+  /* radius scale */
+  --radius-none: 0px;
+  --radius-xxs: 2px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-max: 9999px;
+
+  --navbar-padding-y: var(--space-md);
+  /* canonical Alltra font — Inter everywhere (var kept for back-compat refs) */
+  --font-geist-sans: "Inter", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+
+  /* surfaces — Alltra Desktop light: grey page, near-white cards */
+  --surface-1: #ffffff;
+  --surface-2: #fefefe;
+  --surface-3: #f5f5f5;
+  --surface-4: #fdfdfd;
+  --panel-bg: #f5f5f5;
+  --surface-alpha-4: #ebebeb;
+
+  /* text — Alltra opacity-based ink */
+  --text-primary: rgba(0, 0, 0, 0.92);
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --text-tertiary: rgba(0, 0, 0, 0.4);
+
+  /* borders — Alltra solid hairlines */
+  --border-1: #e6e6e6;
+  --border-2: #ececec;
+  --border-3: #e6e6e6;
+  --border-4: #dadada;
+
+  /* overlays + alpha ladder */
+  --hover-overlay: rgba(0, 0, 0, 0.04);
+  --hover-overlay-medium: rgba(0, 0, 0, 0.08);
+  --hover-overlay-strong: rgba(0, 0, 0, 0.12);
+  --alpha-4: rgba(0, 0, 0, 0.04);
+  --alpha-6: rgba(0, 0, 0, 0.06);
+  --alpha-8: rgba(0, 0, 0, 0.08);
+  --alpha-10: rgba(0, 0, 0, 0.1);
+  --alpha-12: rgba(0, 0, 0, 0.12);
+  --alpha-15: rgba(0, 0, 0, 0.15);
+
+  /* brand / accent — #0066ff (canonical, unchanged) + blue ramp */
+  --alltra-brand: #0066ff;
+  --alltra-brand-rgb: 0, 102, 255;
+  --alltra-brand-dark: #0052cc;
+  /* readable ink ON the brand-filled surfaces — white by default, dark on the
+     bright accents (overridden per-accent below) so text never washes out */
+  --on-brand: #ffffff;
+  --alltra-blue: var(--alltra-brand);
+  --alltra-purple: #9d5cff;
+  --accent-hover: #1473ff;
+  --blue-1: #0066ff;
+  --blue-2: #0676ff;
+  --blue-3: #1e92ff;
+  --blue-4: #48b3ff;
+  --blue-5: #83cfff;
+  --blue-6: #b5e0ff;
+  --success: #00b854;
+  --danger: #ff4757;
+  --warning: #cc8800;
+  --warning-bg: rgba(204, 136, 0, 0.12);
+  --warning-border: rgba(204, 136, 0, 0.3);
+
+  /* elevation — Alltra light (flat/subtle; --shadow-lg carries popover depth) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 8px 28px -6px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+
+  /* ── journal aliases remapped onto the official tokens ─────────────────── */
+  --bg-card: var(--surface-2);
+  --bg-card-hover: var(--surface-3);
+  --bg-elevated: var(--surface-2);
+  --bg-page: var(--panel-bg);
+  --border: var(--border-2);
+  --border-strong: var(--border-4);
+  --text-muted: var(--text-secondary);
+  --text-faint: var(--text-tertiary);
+  --accent: #1f2024; /* swapped at runtime by Theme Style swatches */
+  --accent-soft: rgba(var(--alltra-brand-rgb), 0.12); /* accent-tinted selected states */
+
+  /* radii aligned to Alltra's 12 / 16 rhythm (radius-lg / radius-xl); paper 20 */
+  --r: 12px;
+  --r2: 16px;
+  --r3: 20px;
+  --r4: 16px;
+}
+
+/* ── dark theme — token overrides (cascade into the journal aliases) ─────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  /* surfaces — Alltra Desktop dark (near-black, blue-black step-up) */
+  --surface-1: #0f1011;
+  --surface-2: #131416;
+  --surface-3: #17181a;
+  --surface-4: #1e1e1f;
+  --panel-bg: #0f1011;
+  --surface-alpha-4: #0b0d0f;
+
+  /* text — Alltra opacity-based */
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+
+  /* borders — Alltra solid hairlines */
+  --border-1: #161718;
+  --border-2: #191b1b;
+  --border-3: #1f2022;
+  --border-4: #2a2a2c;
+
+  --hover-overlay: rgba(255, 255, 255, 0.04);
+  --hover-overlay-medium: rgba(255, 255, 255, 0.08);
+  --hover-overlay-strong: rgba(255, 255, 255, 0.12);
+  --alpha-4: rgba(255, 255, 255, 0.04);
+  --alpha-6: rgba(255, 255, 255, 0.06);
+  --alpha-8: rgba(255, 255, 255, 0.08);
+  --alpha-10: rgba(255, 255, 255, 0.1);
+  --alpha-12: rgba(255, 255, 255, 0.12);
+  --alpha-15: rgba(255, 255, 255, 0.15);
+
+  --success: #00ff88;
+  --danger: #ff4757;
+  --warning: #ffc800;
+  --warning-bg: rgba(255, 200, 0, 0.08);
+  --warning-border: rgba(255, 200, 0, 0.2);
+
+  /* elevation — Alltra dark (border-defined; --shadow-lg carries popover depth) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 32px -4px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 8px 16px 0 rgba(0, 0, 0, 0.3), 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* ── Alltra v3 appearance — the extra themes (Light + Dark live above) ──────
+   Onyx / Amber / Iris are dark-family; Slate is light-family. Values mirror
+   @alltra/design-tokens v2 per-theme surfaces/text/borders, mapped onto the
+   journal's v1 token names so every component restyles automatically. */
+[data-theme="onyx"] {
+  color-scheme: dark;
+  --surface-1: #000000; --surface-2: #080808; --surface-3: #101010; --surface-4: #181818;
+  --panel-bg: #000000; --surface-alpha-4: #050505;
+  --text-primary: #f2f4f7; --text-secondary: #a6adb8; --text-tertiary: #696f79;
+  --border-1: #141414; --border-2: #1a1a1a; --border-3: #202020; --border-4: #2a2a2a;
+  --hover-overlay: rgba(255,255,255,0.04); --hover-overlay-medium: rgba(255,255,255,0.08); --hover-overlay-strong: rgba(255,255,255,0.12);
+  --alpha-4: rgba(255,255,255,0.04); --alpha-6: rgba(255,255,255,0.06); --alpha-8: rgba(255,255,255,0.08); --alpha-10: rgba(255,255,255,0.1); --alpha-12: rgba(255,255,255,0.12); --alpha-15: rgba(255,255,255,0.15);
+  --success: #00ff88; --danger: #ff4757; --warning: #ffc800; --warning-bg: rgba(255,200,0,0.08); --warning-border: rgba(255,200,0,0.2);
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 6px 0 rgba(0,0,0,0.5), 0 1px 2px 0 rgba(0,0,0,0.3);
+  --shadow-lg: 0 12px 34px -4px rgba(0,0,0,0.7), 0 4px 14px rgba(0,0,0,0.55);
+  --shadow-xl: 0 12px 32px 0 rgba(0,0,0,0.75), 0 4px 8px 0 rgba(0,0,0,0.5);
+}
+[data-theme="amber"] {
+  color-scheme: dark;
+  --surface-1: #100f0e; --surface-2: #161513; --surface-3: #1c1b18; --surface-4: #22211d;
+  --panel-bg: #0b0a08; --surface-alpha-4: #0e0d0b;
+  --text-primary: #eceae6; --text-secondary: #a7a29b; --text-tertiary: #726d64;
+  --border-1: #1f1e1a; --border-2: #242320; --border-3: #2a2926; --border-4: #302e2a;
+  --hover-overlay: rgba(255,255,255,0.04); --hover-overlay-medium: rgba(255,255,255,0.08); --hover-overlay-strong: rgba(255,255,255,0.12);
+  --alpha-4: rgba(255,255,255,0.04); --alpha-6: rgba(255,255,255,0.06); --alpha-8: rgba(255,255,255,0.08); --alpha-10: rgba(255,255,255,0.1); --alpha-12: rgba(255,255,255,0.12); --alpha-15: rgba(255,255,255,0.15);
+  --success: #00ff88; --danger: #ff4757; --warning: #ffc800; --warning-bg: rgba(255,200,0,0.08); --warning-border: rgba(255,200,0,0.2);
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.15);
+  --shadow-md: 0 2px 4px 0 rgba(0,0,0,0.2), 0 1px 2px 0 rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 32px -4px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-xl: 0 8px 16px 0 rgba(0,0,0,0.3), 0 4px 8px 0 rgba(0,0,0,0.2);
+}
+[data-theme="iris"] {
+  color-scheme: dark;
+  --surface-1: #0f0f12; --surface-2: #151519; --surface-3: #1b1b20; --surface-4: #212127;
+  --panel-bg: #0a0a0d; --surface-alpha-4: #0d0d10;
+  --text-primary: #e9e8ee; --text-secondary: #a1a0ab; --text-tertiary: #6d6c75;
+  --border-1: #1e1e23; --border-2: #232328; --border-3: #29292e; --border-4: #303036;
+  --hover-overlay: rgba(255,255,255,0.04); --hover-overlay-medium: rgba(255,255,255,0.08); --hover-overlay-strong: rgba(255,255,255,0.12);
+  --alpha-4: rgba(255,255,255,0.04); --alpha-6: rgba(255,255,255,0.06); --alpha-8: rgba(255,255,255,0.08); --alpha-10: rgba(255,255,255,0.1); --alpha-12: rgba(255,255,255,0.12); --alpha-15: rgba(255,255,255,0.15);
+  --success: #00ff88; --danger: #ff4757; --warning: #ffc800; --warning-bg: rgba(255,200,0,0.08); --warning-border: rgba(255,200,0,0.2);
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.15);
+  --shadow-md: 0 2px 4px 0 rgba(0,0,0,0.2), 0 1px 2px 0 rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 32px -4px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-xl: 0 8px 16px 0 rgba(0,0,0,0.3), 0 4px 8px 0 rgba(0,0,0,0.2);
+}
+[data-theme="slate"] {
+  color-scheme: light;
+  --surface-1: #f1f2f5; --surface-2: #eaebf0; --surface-3: #e2e4ea; --surface-4: #daddE4;
+  --panel-bg: #d6dae0; --surface-alpha-4: #dfe2e8;
+  --text-primary: #1a1d27; --text-secondary: #4b505e; --text-tertiary: #8e93a2;
+  --border-1: #cfd2d9; --border-2: #c9ccd3; --border-3: #c2c5cd; --border-4: #babdc6;
+  --hover-overlay: rgba(0,0,0,0.04); --hover-overlay-medium: rgba(0,0,0,0.08); --hover-overlay-strong: rgba(0,0,0,0.12);
+  --alpha-4: rgba(0,0,0,0.04); --alpha-6: rgba(0,0,0,0.06); --alpha-8: rgba(0,0,0,0.08); --alpha-10: rgba(0,0,0,0.1); --alpha-12: rgba(0,0,0,0.12); --alpha-15: rgba(0,0,0,0.15);
+  --success: #00b854; --danger: #ff4757; --warning: #cc8800; --warning-bg: rgba(204,136,0,0.12); --warning-border: rgba(204,136,0,0.3);
+  --shadow-sm: 0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.03);
+  --shadow-md: 0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.03);
+  --shadow-lg: 0 8px 28px -6px rgba(16,24,40,0.14), 0 2px 6px rgba(16,24,40,0.08);
+  --shadow-xl: 0 1px 2px rgba(16,24,40,0.06), 0 1px 3px rgba(16,24,40,0.03);
+}
+
+/* ── Interface accent colors (15) — set the brand hue used app-wide ────────── */
+[data-accent="alltra"]   { --alltra-brand: #0066ff; --alltra-brand-rgb: 0,102,255;   --accent-hover: #0052cc; }
+[data-accent="indigo"]   { --alltra-brand: #4338ca; --alltra-brand-rgb: 67,56,202;   --accent-hover: #3730a3; }
+[data-accent="purple"]   { --alltra-brand: #a855f7; --alltra-brand-rgb: 168,85,247;  --accent-hover: #9333ea; }
+[data-accent="pink"]     { --alltra-brand: #ec4899; --alltra-brand-rgb: 236,72,153;  --accent-hover: #db2777; }
+[data-accent="rose"]     { --alltra-brand: #f43f5e; --alltra-brand-rgb: 244,63,94;   --accent-hover: #e11d48; }
+[data-accent="red"]      { --alltra-brand: #ef4444; --alltra-brand-rgb: 239,68,68;   --accent-hover: #dc2626; }
+[data-accent="ruby"]     { --alltra-brand: #be123c; --alltra-brand-rgb: 190,18,60;   --accent-hover: #9f1239; }
+[data-accent="orange"]   { --alltra-brand: #f97316; --alltra-brand-rgb: 249,115,22;  --accent-hover: #ea580c; }
+[data-accent="peach"]    { --alltra-brand: #fb923c; --alltra-brand-rgb: 251,146,60;  --accent-hover: #f59e0b; }
+[data-accent="gold"]     { --alltra-brand: #d4a017; --alltra-brand-rgb: 212,160,23;  --accent-hover: #b8860b; }
+[data-accent="lime"]     { --alltra-brand: #84cc16; --alltra-brand-rgb: 132,204,22;  --accent-hover: #65a30d; }
+[data-accent="green"]    { --alltra-brand: #22c55e; --alltra-brand-rgb: 34,197,94;   --accent-hover: #16a34a; }
+[data-accent="teal"]     { --alltra-brand: #14b8a6; --alltra-brand-rgb: 20,184,166;  --accent-hover: #0d9488; }
+[data-accent="sky"]      { --alltra-brand: #0ea5e9; --alltra-brand-rgb: 14,165,233;  --accent-hover: #0284c7; }
+[data-accent="platinum"] { --alltra-brand: #71717a; --alltra-brand-rgb: 113,113,122; --accent-hover: #52525b; }
+/* Bright accents need dark ink on their filled surfaces (white fails contrast). */
+[data-accent="peach"],
+[data-accent="gold"],
+[data-accent="lime"],
+[data-accent="green"] { --on-brand: #16181c; }
+
+* {
+  border-color: var(--border);
+}
+
+/* ── Alltra v3 section sidebar rows ─────────────────────────────────────────
+   Hover/active washes are CSS (no React re-render); !important beats the inline
+   transparent background the row ships with. Active wins over hover (declared
+   second, equal specificity). */
+.alltra-nav-row:hover:not(:disabled) {
+  background: var(--hover-overlay) !important;
+}
+.alltra-nav-row[data-active="true"] {
+  background: var(--hover-overlay) !important;
+}
+.alltra-tree-item:not([data-active="true"]):not(:disabled):hover {
+  background: var(--hover-overlay) !important;
+  color: var(--text-secondary) !important;
+}
+.alltra-chrome-tile:hover {
+  background: var(--alpha-6) !important;
+}
+.alltra-chrome-tile:hover svg {
+  opacity: 1 !important;
+}
+/* Below md the section sidebar is hidden (content margin drops to the rail via
+   the isMobile state); the mobile menu button opens the legacy nav drawer. */
+@media (max-width: 767px) {
+  /* !important beats the aside's inline display:flex */
+  .alltra-sidenav {
+    display: none !important;
+  }
+}
+
+/* Keyboard focus is visible on all the custom chrome (the app scopes outline:none
+   to .journal/.ProseMirror only, so this doesn't fight the editor). */
+.alltra-nav-row:focus-visible,
+.alltra-chrome-tile:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--alltra-brand);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-geist-sans);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* canonical heading treatment (editor .journal h1/h2 override with their own) */
+h1,
+h2 {
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+/* ── editor surface ──────────────────────────────────────────────────────── */
+.journal {
+  outline: none;
+  caret-color: var(--accent);
+}
+/* On dark-family themes the editor-paper --accent is near-black and invisible;
+   the caret tracks the readable text color instead. */
+[data-theme="dark"] .journal,
+[data-theme="onyx"] .journal,
+[data-theme="amber"] .journal,
+[data-theme="iris"] .journal {
+  caret-color: var(--text-primary);
+}
+.journal ::selection,
+.journal::selection {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.journal h1 {
+  font-size: 3.4rem;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  margin: 0 0 1.1rem;
+}
+/* keep titles readable on dark regardless of the (possibly dark) accent */
+[data-theme="dark"] .journal h1,
+[data-theme="onyx"] .journal h1,
+[data-theme="amber"] .journal h1,
+[data-theme="iris"] .journal h1 {
+  color: var(--text-primary);
+}
+.journal h2 {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 1.6rem 0 0.4rem;
+}
+.journal p {
+  margin: 0 0 0.95rem;
+}
+.journal strong {
+  font-weight: 700;
+  /* inherit so a text-color mark (or heading accent) actually shows on bold text;
+     a hardcoded color here was silently overriding every color you picked */
+  color: inherit;
+}
+.journal h3 {
+  font-size: 1.96rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 1.3rem 0 0.3rem;
+}
+.journal ul {
+  margin: 0.4rem 0 1rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.journal ol {
+  margin: 0.4rem 0 1rem;
+  padding-left: 1.35rem;
+  list-style: decimal;
+}
+.journal li {
+  margin: 0.15rem 0;
+}
+.journal blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 1rem;
+  margin: 0.6rem 0;
+  color: var(--text-muted);
+}
+.journal code {
+  background: var(--hover-overlay-medium);
+  padding: 0.12em 0.36em;
+  border-radius: 4px;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+}
+.journal pre {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  margin: 0.7rem 0;
+  overflow-x: auto;
+}
+.journal pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85em;
+}
+/* content tables (Notion-style "content table" templates + /table command).
+   Styles live on the <table> itself so it looks identical in the editor (where
+   ProseMirror wraps it in .tableWrapper) and in the raw-HTML gallery preview. */
+.journal .tableWrapper {
+  margin: 0.9rem 0;
+  overflow-x: auto;
+}
+.journal table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  margin: 0.9rem 0;
+  table-layout: fixed;
+  font-size: 0.94em;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+}
+.journal .tableWrapper table {
+  margin: 0; /* the wrapper owns the outer spacing inside the editor */
+}
+.journal table td,
+.journal table th {
+  position: relative;
+  min-width: 90px;
+  padding: 7px 11px;
+  vertical-align: top;
+  text-align: left;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+}
+.journal table td:last-child,
+.journal table th:last-child {
+  border-right: none;
+}
+.journal table tr:last-child td,
+.journal table tr:last-child th {
+  border-bottom: none;
+}
+.journal table th {
+  background: var(--surface-3);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.journal table p {
+  margin: 0;
+}
+/* round the cell fills so header/row tints follow the table's rounded corners */
+.journal table tr:first-child th:first-child,
+.journal table tr:first-child td:first-child {
+  border-top-left-radius: 9px;
+}
+.journal table tr:first-child th:last-child,
+.journal table tr:first-child td:last-child {
+  border-top-right-radius: 9px;
+}
+.journal table tr:last-child th:first-child,
+.journal table tr:last-child td:first-child {
+  border-bottom-left-radius: 9px;
+}
+.journal table tr:last-child td:last-child,
+.journal table tr:last-child th:last-child {
+  border-bottom-right-radius: 9px;
+}
+/* cell selection + column-resize handle (TipTap) */
+.journal table .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--alpha-8);
+  pointer-events: none;
+}
+.journal table .column-resize-handle {
+  position: absolute;
+  right: -1px;
+  top: 0;
+  bottom: -1px;
+  width: 3px;
+  background: var(--alltra-brand);
+  pointer-events: none;
+}
+.journal .resize-cursor {
+  cursor: col-resize;
+}
+/* callout */
+.journal .jcallout {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  margin: 0.7rem 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--hover-overlay);
+}
+.journal .jcallout-icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  display: grid;
+  place-items: center;
+  height: 26px;
+  width: 26px;
+  border-radius: 8px;
+  background: var(--hover-overlay);
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.journal .jcallout-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.journal .jcallout-body > :last-child {
+  margin-bottom: 0;
+}
+.journal .jcallout[data-color="amber"] {
+  background: rgba(207, 148, 16, 0.1);
+  border-color: rgba(207, 148, 16, 0.28);
+}
+.journal .jcallout[data-color="amber"] .jcallout-icon {
+  color: #cf9410;
+}
+.journal .jcallout[data-color="blue"] {
+  background: rgba(0, 102, 255, 0.09);
+  border-color: rgba(0, 102, 255, 0.26);
+}
+.journal .jcallout[data-color="blue"] .jcallout-icon {
+  color: var(--alltra-brand);
+}
+.journal .jcallout[data-color="green"] {
+  background: rgba(31, 157, 87, 0.1);
+  border-color: rgba(31, 157, 87, 0.26);
+}
+.journal .jcallout[data-color="green"] .jcallout-icon {
+  color: #1f9d57;
+}
+.journal .jcallout[data-color="violet"] {
+  background: rgba(139, 81, 224, 0.1);
+  border-color: rgba(139, 81, 224, 0.26);
+}
+.journal .jcallout[data-color="violet"] .jcallout-icon {
+  color: #8b51e0;
+}
+
+/* tag pill — fixed size/weight so the Size / Line controls don't distort it */
+.journal .jtag {
+  display: inline-block;
+  padding: 0.12em 0.55em;
+  margin: 0 0.12em;
+  border-radius: 7px;
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+  letter-spacing: 0 !important;
+  font-weight: 500;
+  vertical-align: 1px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.journal .jtag[data-color="green"] {
+  background: rgba(34, 197, 94, 0.14);
+  color: #1f9d57;
+}
+.journal .jtag[data-color="blue"] {
+  background: rgba(0, 102, 255, 0.12);
+  color: #2f6fdb;
+}
+.journal .jtag[data-color="purple"] {
+  background: rgba(144, 101, 176, 0.15);
+  color: #8b51e0;
+}
+.journal .jtag[data-color="orange"] {
+  background: rgba(217, 115, 13, 0.14);
+  color: #d9730d;
+}
+.journal .jtag[data-color="pink"] {
+  background: rgba(193, 76, 138, 0.14);
+  color: #c14c8a;
+}
+.journal .jtag[data-color="amber"] {
+  background: rgba(203, 145, 47, 0.16);
+  color: #cf9410;
+}
+
+/* Brighter callout / tag ink on the dark themes — the light-mode hexes read
+   muddy on near-black surfaces (blue callout already uses the accent). */
+[data-theme="dark"] .journal .jcallout[data-color="amber"] .jcallout-icon,
+[data-theme="onyx"] .journal .jcallout[data-color="amber"] .jcallout-icon,
+[data-theme="amber"] .journal .jcallout[data-color="amber"] .jcallout-icon,
+[data-theme="iris"] .journal .jcallout[data-color="amber"] .jcallout-icon,
+[data-theme="dark"] .journal .jtag[data-color="amber"],
+[data-theme="onyx"] .journal .jtag[data-color="amber"],
+[data-theme="amber"] .journal .jtag[data-color="amber"],
+[data-theme="iris"] .journal .jtag[data-color="amber"] {
+  color: #e0a93a;
+}
+[data-theme="dark"] .journal .jcallout[data-color="green"] .jcallout-icon,
+[data-theme="onyx"] .journal .jcallout[data-color="green"] .jcallout-icon,
+[data-theme="amber"] .journal .jcallout[data-color="green"] .jcallout-icon,
+[data-theme="iris"] .journal .jcallout[data-color="green"] .jcallout-icon,
+[data-theme="dark"] .journal .jtag[data-color="green"],
+[data-theme="onyx"] .journal .jtag[data-color="green"],
+[data-theme="amber"] .journal .jtag[data-color="green"],
+[data-theme="iris"] .journal .jtag[data-color="green"] {
+  color: #33c27a;
+}
+[data-theme="dark"] .journal .jcallout[data-color="violet"] .jcallout-icon,
+[data-theme="onyx"] .journal .jcallout[data-color="violet"] .jcallout-icon,
+[data-theme="amber"] .journal .jcallout[data-color="violet"] .jcallout-icon,
+[data-theme="iris"] .journal .jcallout[data-color="violet"] .jcallout-icon,
+[data-theme="dark"] .journal .jtag[data-color="purple"],
+[data-theme="onyx"] .journal .jtag[data-color="purple"],
+[data-theme="amber"] .journal .jtag[data-color="purple"],
+[data-theme="iris"] .journal .jtag[data-color="purple"] {
+  color: #a97cf0;
+}
+[data-theme="dark"] .journal .jtag[data-color="blue"],
+[data-theme="onyx"] .journal .jtag[data-color="blue"],
+[data-theme="amber"] .journal .jtag[data-color="blue"],
+[data-theme="iris"] .journal .jtag[data-color="blue"] {
+  color: #5b93ff;
+}
+[data-theme="dark"] .journal .jtag[data-color="orange"],
+[data-theme="onyx"] .journal .jtag[data-color="orange"],
+[data-theme="amber"] .journal .jtag[data-color="orange"],
+[data-theme="iris"] .journal .jtag[data-color="orange"] {
+  color: #f0904a;
+}
+[data-theme="dark"] .journal .jtag[data-color="pink"],
+[data-theme="onyx"] .journal .jtag[data-color="pink"],
+[data-theme="amber"] .journal .jtag[data-color="pink"],
+[data-theme="iris"] .journal .jtag[data-color="pink"] {
+  color: #e07aa8;
+}
+
+/* inserted icon / emoji glyph — clickable to swap; fixed size */
+.journal .jicon {
+  display: inline-block;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+  vertical-align: middle;
+  padding: 0 0.05em;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s ease;
+}
+.journal .jicon:hover {
+  background: var(--hover-overlay);
+}
+/* boxed lucide icon — soft colored rounded square badge */
+/* boxed icon scales with the surrounding text (em), so it matches whatever size
+   the text in its section is (paragraph, heading, or the Size slider) */
+.journal .jicon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 0.32em;
+  vertical-align: middle;
+}
+/* for boxed icons, let the wrapper inherit the text's font-size and drop its
+   forced line-height so `middle` centers the box on the text line */
+.journal .jicon:has(.jicon-box) {
+  font-size: inherit !important;
+  line-height: 0 !important;
+  vertical-align: middle;
+}
+
+/* banner — gradient header that bleeds past the px-20/py-16 editor padding to
+   the paper edges, sitting flush at the top of the entry */
+.journal .jbanner {
+  box-sizing: border-box;
+  width: calc(100% + 10rem);
+  margin: -4rem -5rem 1.6rem;
+  height: 190px;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  background-size: cover;
+  background-position: center;
+}
+.journal .jbanner:hover {
+  filter: brightness(1.03);
+}
+
+/* page link — inline chip referencing another journal entry */
+.journal .jpagelink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.08em 0.5em;
+  margin: 0 0.1em;
+  border-radius: 6px;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+  font-weight: 500;
+  vertical-align: 1px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  color: var(--alltra-brand);
+  background: rgba(var(--alltra-brand-rgb), 0.08);
+  transition: background-color 0.12s ease;
+}
+.journal .jpagelink:hover {
+  background: rgba(var(--alltra-brand-rgb), 0.14);
+}
+.journal .jpagelink[data-empty="true"] {
+  color: var(--text-muted);
+  background: var(--hover-overlay);
+}
+
+/* trade link — inline chip referencing a trade (symbol + P&L) */
+.journal .jtradelink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.08em 0.5em;
+  margin: 0 0.1em;
+  border-radius: 6px;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+  font-weight: 600;
+  vertical-align: 1px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-primary);
+  background: var(--hover-overlay);
+  border: 1px solid var(--border);
+  transition: background-color 0.12s ease;
+}
+.journal .jtradelink:hover {
+  background: var(--hover-overlay-medium);
+}
+.journal .jtradelink[data-empty="true"] {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* toggle (collapsible) */
+.journal .jtoggle {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.3rem 0;
+}
+.journal .jtoggle-chevron {
+  flex-shrink: 0;
+  margin-top: 0.18rem;
+  display: grid;
+  place-items: center;
+  height: 22px;
+  width: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: transform 0.15s ease, background-color 0.12s;
+}
+.journal .jtoggle-chevron:hover {
+  background: var(--hover-overlay-medium);
+}
+.journal .jtoggle-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.journal .jtoggle-content > :first-child {
+  margin-top: 0;
+}
+.journal .jtoggle[data-open="false"] .jtoggle-content > *:not(:first-child) {
+  display: none;
+}
+
+/* checklists */
+.journal ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.15rem;
+}
+.journal ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.journal ul[data-type="taskList"] li > label {
+  /* center the 17px box on the first text line (line box = --ed-lh) */
+  margin-top: calc((var(--ed-lh, 28px) - 17px) / 2);
+  display: flex;
+  user-select: none;
+}
+.journal ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+/* custom rounded checkbox — lavender outline, filled purple + white check when on */
+.journal ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  border: 1.5px solid #c4b5fd;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.journal ul[data-type="taskList"] input[type="checkbox"]:hover {
+  border-color: #a78bfa;
+}
+.journal ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+.journal ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* only the "Checklist" variant strikes through checked items (plain to-do doesn't) */
+.journal ul[data-type="taskList"][data-variant="checklist"] li[data-checked="true"] > div {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+.journal a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* editor-paper --accent is near-black on dark themes → links follow the brand accent */
+[data-theme="dark"] .journal a,
+[data-theme="onyx"] .journal a,
+[data-theme="amber"] .journal a,
+[data-theme="iris"] .journal a {
+  color: var(--alltra-brand);
+}
+.journal img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 0.5rem 0;
+}
+/* TipTap editable surface — font/size/spacing come from the paper's CSS vars */
+.journal .ProseMirror {
+  outline: none;
+  min-height: calc(100vh - 20rem);
+  font-family: var(--ed-font);
+  font-size: var(--ed-size);
+  line-height: var(--ed-lh);
+  letter-spacing: var(--ed-ls, normal);
+}
+.journal .ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── book-style page turn ──────────────────────────────────────────────── */
+.paper-stack {
+  perspective: 1800px;
+}
+.stack-sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  z-index: 0;
+}
+.stack-sheet.s1 {
+  transform: translate(7px, 9px) scale(0.992);
+  opacity: 0.85;
+}
+.stack-sheet.s2 {
+  transform: translate(14px, 18px) scale(0.984);
+  opacity: 0.6;
+}
+
+/* a fresh sheet slides in from the side and settles onto the stack */
+@keyframes pageSwipeNext {
+  0% {
+    opacity: 0;
+    transform: translateX(120px) scale(1.015);
+    box-shadow: -26px 22px 55px rgba(0, 0, 0, 0.16);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    box-shadow: var(--shadow-md);
+  }
+}
+@keyframes pageSwipePrev {
+  0% {
+    opacity: 0;
+    transform: translateX(-120px) scale(1.015);
+    box-shadow: 26px 22px 55px rgba(0, 0, 0, 0.16);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    box-shadow: var(--shadow-md);
+  }
+}
+.page-next {
+  animation: pageSwipeNext 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.page-prev {
+  animation: pageSwipePrev 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* mobile nav drawer slide-in */
+@keyframes navSlideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.nav-slide-in {
+  animation: navSlideIn 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Nikki (mock AI panel) — backdrop fade + typing-dot blink */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nikkiBlink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* scrollable but no visible scrollbar */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* thin Alltra-style scrollbars */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--alpha-12);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--alpha-12);
+}
+
+/* ── Notes rich text (reuses the journal node styles, but compact) ───────────
+   placed last so these win the specificity tie against the paper `.journal`
+   rules above (same specificity → later rule wins). */
+.note-rich .ProseMirror {
+  min-height: 240px;
+  max-height: 50vh;
+  overflow-y: auto;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.note-rich h1 {
+  font-size: 1.7rem;
+  line-height: 1.2;
+  margin: 0.2rem 0 0.5rem;
+}
+.note-rich h2 {
+  font-size: 1.4rem;
+  margin: 0.85rem 0 0.4rem;
+}
+.note-rich h3 {
+  font-size: 1.18rem;
+  margin: 0.7rem 0 0.3rem;
+}
+.note-rich .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+/* read-only rich preview inside a note card */
+.note-card-body {
+  font-size: 14px;
+  line-height: 1.55;
+  /* clamp the preview to a fixed number of lines and append "…" when it
+     overflows, so every card stays the same size */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 9;
+  line-clamp: 9;
+  overflow: hidden;
+  pointer-events: none; /* clicks fall through to the card → open editor */
+  color: #3f3f46;
+}
+.note-card-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* the white "paper" the note body sits on — the OUTER note keeps the picked
+   theme color, the inner text box is always white so text stays readable */
+.note-paper {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 14px 16px;
+  color: #1f2024;
+}
+.note-paper h1,
+.note-paper h2,
+.note-paper h3,
+.note-paper p,
+.note-paper li {
+  color: #1f2024;
+}
