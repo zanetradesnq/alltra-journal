@@ -431,7 +431,10 @@ h2 {
 .journal table th {
   position: relative;
   min-width: 90px;
-  padding: 7px 11px;
+  padding: 6px 11px;
+  /* the editor's ~32px line-height inherits in and makes cells airy / wrapped
+     rows huge — pin a compact line box so content tables read tight like Notion */
+  line-height: 1.5;
   vertical-align: top;
   text-align: left;
   border-right: 1px solid var(--border-strong);
@@ -1180,48 +1183,102 @@ h2 {
 }
 
 /* ── Trade Log table (the Notion-style trade database block) ───────────────── */
+/* ═══ Trade log — a Notion/Attio data grid ═══════════════════════════════════
+   It renders as a real <table> inside .journal, so the editor's generic
+   content-table rules (.journal table / td / th — specificity 0,1,1–2) outrank
+   single-class .tt-* rules (0,1,0) and inject 0.94em text, the editor's ~32px
+   line-height, --border-strong borders, min-width:90px & vertical-align:top.
+   Every rule that must beat that pollution uses class-ancestry (.tt-scroll .tt,
+   .tt .tt-td …) = 0,2,x, with NO .journal prefix so it ALSO styles the
+   fullscreen overlay (which is portaled to <body>, outside .journal). ═════════ */
 .tt-wrap {
   margin: 1.1rem 0;
 }
+/* card frame — the scroll wrapper owns the rounded border; the table has none.
+   Round only the top corners so the flush add-row supplies the bottom radius. */
 .tt-scroll {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 12px 12px 0 0;
   background: var(--bg-card);
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover-overlay-strong) transparent;
+}
+.tt-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.tt-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tt-scroll::-webkit-scrollbar-thumb {
+  background: var(--hover-overlay-medium);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.tt-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--hover-overlay-strong);
 }
 .tt {
   border-collapse: collapse;
   width: max-content;
   min-width: 100%;
-  font-size: 13px;
   color: var(--text);
 }
-.tt-th,
-.tt-td {
+/* ROOT FIX #1 — kill the leaked 0.94em font + the ~32px line-height leak at the
+   table root, and strip the leaked outer border/radius (.tt-scroll owns it). */
+.tt-scroll .tt {
+  font-size: 13.5px;
+  line-height: 1.35;
+  letter-spacing: -0.003em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  border: none;
+  border-radius: 0;
+}
+/* ROOT FIX #2 — reset the leaked cell padding/min-width/vertical-align/border. */
+.tt .tt-th,
+.tt .tt-td {
+  padding: 0;
+  min-width: 0;
+  vertical-align: middle;
+  text-align: left;
+  line-height: inherit;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  padding: 0;
-  text-align: left;
-  vertical-align: middle;
 }
-.tt-th {
+.tt .tt-td:last-child,
+.tt .tt-th:last-child {
+  border-right: none;
+}
+.tt .tt-td {
+  height: 33px;
+}
+/* header — muted, sentence-case, shares the body surface; one strong divider */
+.tt .tt-th {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 8px 12px;
-  background: var(--bg-card-hover);
+  height: 32px;
+  padding: 0 10px;
+  background: var(--surface-2);
   color: var(--text-muted);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  text-transform: none;
   white-space: nowrap;
+  border-bottom: 1px solid var(--border-strong);
 }
-.tt-tr:hover .tt-td {
-  background: var(--hover-overlay);
+.tt .tt-th-num {
+  text-align: right;
 }
-.tt-td {
-  height: 38px;
+/* row hover — a calm data band (skip the utility columns) */
+.tt-tr:hover .tt-td:not(.tt-td-grip):not(.tt-td-add) {
+  background: var(--hover-overlay-medium);
 }
+/* grip / delete-row column */
 .tt-th-grip,
 .tt-td-grip {
   width: 30px;
@@ -1229,7 +1286,7 @@ h2 {
   text-align: center;
   position: relative;
   color: var(--text-faint);
-  background: var(--bg-card-hover);
+  background: var(--surface-2);
 }
 .tt-td-grip {
   background: transparent;
@@ -1245,8 +1302,12 @@ h2 {
   inset: 0;
   display: none;
   place-items: center;
-  color: var(--danger);
+  color: var(--text-faint);
   cursor: pointer;
+  transition: color 0.1s ease;
+}
+.tt-del:hover {
+  color: var(--danger);
 }
 .tt-tr:hover .tt-del {
   display: grid;
@@ -1254,30 +1315,52 @@ h2 {
 .tt-tr:hover .tt-del + .tt-grip {
   opacity: 0;
 }
-/* cell inputs — transparent, fill the cell, no chrome until focus */
-.tt-input {
+/* cell inputs + the non-focused display span (inputs can't ellipsis) */
+.tt .tt-input,
+.tt .tt-url-input {
   width: 100%;
   height: 100%;
-  min-height: 38px;
-  padding: 6px 12px;
+  min-height: 33px;
+  padding: 0 10px;
   border: none;
   background: transparent;
   color: var(--text);
-  font: inherit;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 33px;
+  letter-spacing: -0.003em;
   outline: none;
 }
-.tt-input:focus {
-  box-shadow: inset 0 0 0 2px var(--accent);
-  border-radius: 4px;
+.tt .tt-input:focus,
+.tt .tt-url-input:focus {
+  box-shadow: inset 0 0 0 1.5px rgba(var(--alltra-brand-rgb), 0.55);
+  background: var(--hover-overlay);
+  border-radius: var(--radius-xs);
 }
-.tt-num {
+.tt .tt-val {
+  display: block;
+  width: 100%;
+  padding: 0 10px;
+  line-height: 33px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  cursor: text;
+}
+/* right-align numeric inputs, display spans & headers on the decimal */
+.tt .tt-num {
+  text-align: right;
+  padding-right: 12px;
   font-variant-numeric: tabular-nums;
 }
+/* url cell */
 .tt-url {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
+  line-height: 33px;
 }
 .tt-url-link {
   display: inline-flex;
@@ -1288,38 +1371,46 @@ h2 {
   text-decoration: none;
   font-size: 12px;
 }
-.tt-url-input {
+.tt .tt-url-input {
   flex: 1;
   min-width: 40px;
-  padding: 6px 2px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  outline: none;
+  padding: 0 2px;
+}
+.tt .tt-url-input::placeholder {
+  color: transparent;
 }
 /* colour-tag select cell */
-.tt-tag-btn {
+.tt .tt-tag-btn {
   display: flex;
   align-items: center;
   width: 100%;
-  height: 100%;
-  min-height: 38px;
-  padding: 4px 12px;
+  min-height: 33px;
+  padding: 0 10px;
   background: transparent;
   cursor: pointer;
 }
 .tt-tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 .tt-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* an empty tag cell whispers "Empty" only on row hover (never a loud em-dash) */
+.tt-tr:hover .tt-tag-btn:has(.tt-empty)::after {
+  content: "Empty";
   color: var(--text-faint);
+  font-size: 12px;
+  padding-left: 2px;
 }
 .tt-pop {
   position: fixed;
@@ -1355,8 +1446,8 @@ h2 {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-  padding: 5px 8px;
-  min-height: 38px;
+  padding: 3px 8px;
+  min-height: 33px;
 }
 .tt-thumb {
   position: relative;
@@ -1419,65 +1510,71 @@ h2 {
   border-radius: 10px;
   box-shadow: var(--shadow-xl);
 }
-/* footer sums / count */
+/* footer — sums / count. Shares the body surface; one strong top divider */
 .tt-foot .tt-td {
+  height: 32px;
+  background: var(--surface-2);
   border-bottom: none;
-  height: 34px;
-  background: var(--bg-card-hover);
+  border-top: 1px solid var(--border-strong);
 }
 .tt-foot-cell {
   padding: 0 12px;
 }
 .tt-count,
 .tt-sum {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 .tt-sum {
+  display: block;
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
+/* add-row — seated flush under the card as one unit (quiet "+ New trade") */
 .tt-addrow {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  margin-top: 6px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  color: var(--text-muted);
+  margin-top: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  color: var(--text-faint);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.1s ease, color 0.1s ease;
 }
 .tt-addrow:hover {
   background: var(--hover-overlay);
-  color: var(--text);
+  color: var(--text-muted);
 }
-/* expand toolbar */
+/* expand toolbar — a quiet corner ghost, not a stray form control */
 .tt-bar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .tt-expand {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
   font-size: 12px;
   cursor: pointer;
   transition: background 0.1s ease, color 0.1s ease;
 }
 .tt-expand:hover {
-  background: var(--bg-card-hover);
-  color: var(--text);
+  background: var(--hover-overlay);
+  color: var(--text-muted);
 }
 /* interactive header + add-column */
 .tt-th-btn {
@@ -1486,6 +1583,9 @@ h2 {
 }
 .tt-th-btn:hover {
   background: var(--hover-overlay-medium);
+}
+.tt-th-btn:active {
+  background: var(--hover-overlay-strong);
 }
 .tt-th-add,
 .tt-td-add {
@@ -1498,13 +1598,13 @@ h2 {
   place-items: center;
   width: 100%;
   height: 100%;
-  min-height: 34px;
+  min-height: 32px;
   color: var(--text-faint);
   cursor: pointer;
   transition: color 0.1s ease, background 0.1s ease;
 }
 .tt-addcol:hover {
-  color: var(--text);
+  color: var(--text-muted);
   background: var(--hover-overlay-medium);
 }
 /* column header menu */
@@ -1554,8 +1654,8 @@ h2 {
   color: var(--text);
 }
 .tt-colmenu-type.tt-on {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--hover-overlay-strong);
+  color: var(--text-primary);
 }
 .tt-colmenu-sep {
   height: 1px;
@@ -1585,7 +1685,7 @@ h2 {
   color: var(--text-muted);
   font-size: 12.5px;
 }
-/* fullscreen table overlay */
+/* fullscreen table overlay (portaled to <body>, outside .journal) */
 .tt-overlay {
   position: fixed;
   inset: 0;
@@ -1629,7 +1729,25 @@ h2 {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 24px;
+  padding: 16px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover-overlay-strong) transparent;
+}
+.tt-overlay-body::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.tt-overlay-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tt-overlay-body::-webkit-scrollbar-thumb {
+  background: var(--hover-overlay-medium);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.tt-overlay-body::-webkit-scrollbar-thumb:hover {
+  background: var(--hover-overlay-strong);
 }
 
 /* ── Block drag-to-reorder — the insertion line, the ghost, the dimmed source ── */

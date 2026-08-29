@@ -162,7 +162,7 @@ function defaultData(): TableData {
       [c[16].id]: [],
     },
   };
-  return { columns, rows: [sample, blankRow(columns)], addLabel: "trade", id: uid() };
+  return { columns, rows: [sample], addLabel: "trade", id: uid() };
 }
 
 /** Map a trade-table's rows to Trade objects for the store (columns matched by name). */
@@ -368,7 +368,7 @@ function SelectCell({
             {opt.label}
           </span>
         ) : (
-          <span className="tt-empty">—</span>
+          <span className="tt-empty" />
         )}
       </button>
       {open &&
@@ -555,11 +555,12 @@ function TextCell({
   onCommit: (v: string) => void;
 }) {
   const [v, setV] = useState(value);
+  const [editing, setEditing] = useState(false);
   useEffect(() => setV(value), [value]);
   if (type === "url") {
     return (
       <div className="tt-url">
-        {value ? (
+        {/^https?:\/\//i.test(value) ? (
           <a href={value} target="_blank" rel="noreferrer" className="tt-url-link" onClick={(e) => e.stopPropagation()}>
             <Link2 size={12} /> Link
           </a>
@@ -567,7 +568,7 @@ function TextCell({
         <input
           className="tt-url-input"
           value={v}
-          placeholder="url…"
+          placeholder=""
           onChange={(e) => setV(e.target.value)}
           onBlur={() => onCommit(v)}
           onKeyDown={(e) => e.stopPropagation()}
@@ -575,13 +576,29 @@ function TextCell({
       </div>
     );
   }
+  const isNum = type === "num";
+  // non-focused, non-empty cells render a truncating display span — inputs can't
+  // ellipsis, so a long value like "1920.18" clips mid-glyph in a narrow column.
+  // Click swaps to the editable input (Notion's exact behaviour).
+  if (!editing && value !== "") {
+    return (
+      <div className={"tt-val" + (isNum ? " tt-num" : "")} title={value} onClick={() => setEditing(true)}>
+        {value}
+      </div>
+    );
+  }
   return (
     <input
-      className={"tt-input" + (type === "num" ? " tt-num" : "")}
+      className={"tt-input" + (isNum ? " tt-num" : "")}
       value={v}
-      inputMode={type === "num" ? "decimal" : undefined}
+      autoFocus={editing}
+      inputMode={isNum ? "decimal" : undefined}
+      onFocus={() => setEditing(true)}
       onChange={(e) => setV(e.target.value)}
-      onBlur={() => onCommit(v)}
+      onBlur={() => {
+        setEditing(false);
+        onCommit(v);
+      }}
       onKeyDown={(e) => e.stopPropagation()}
     />
   );
@@ -695,7 +712,7 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
               {data.columns.map((c) => (
                 <th
                   key={c.id}
-                  className="tt-th tt-th-btn"
+                  className={"tt-th tt-th-btn" + (c.type === "num" ? " tt-th-num" : "")}
                   style={{ minWidth: c.width, width: c.width }}
                   onClick={(e) => {
                     const r = e.currentTarget.getBoundingClientRect();
@@ -750,9 +767,14 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
               {data.columns.map((c, i) => (
                 <td key={c.id} className="tt-td tt-foot-cell">
                   {i === 0 ? (
-                    <span className="tt-count">Count {data.rows.length}</span>
+                    <span className="tt-count">
+                      {data.rows.length} {data.rows.length === 1 ? "row" : "rows"}
+                    </span>
                   ) : c.sum ? (
-                    <span className="tt-sum">Σ {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}</span>
+                    <span className="tt-sum">
+                      <span style={{ color: "var(--text-faint)" }}>Σ</span>{" "}
+                      {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
+                    </span>
                   ) : null}
                 </td>
               ))}
