@@ -22,6 +22,7 @@ import { LetterSpacing } from "./extensions/letterSpacing";
 import { Callout } from "./extensions/callout";
 import { Toggle } from "./extensions/toggle";
 import { TextColor, BgColor, BlockStyle } from "./extensions/color";
+import { Badge } from "./extensions/badge";
 import { Tag } from "./extensions/tag";
 import { IconNode } from "./extensions/iconNode";
 import { Banner } from "./extensions/banner";
@@ -84,6 +85,7 @@ import { JournalQualityWidget } from "./components/JournalQualityWidget";
 import { BlockMenu } from "./components/BlockMenu";
 import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
+import { EditorContextMenu } from "./components/EditorContextMenu";
 import { TemplateGallery } from "./components/TemplateGallery";
 import { TableMenu } from "./components/TableMenu";
 import {
@@ -1627,6 +1629,7 @@ export default function App() {
       TextStyle,
       TextColor,
       BgColor,
+      Badge,
       BlockStyle,
       FontFamily,
       FontSize,
@@ -2406,6 +2409,7 @@ export default function App() {
       }
     >
       <SelectionMenu menu={menu} onAI={runAI} onClose={() => setMenu(null)} />
+      <EditorContextMenu editor={editor} />
       {blockMenu && editor && (
         <BlockMenu
           editor={editor}
