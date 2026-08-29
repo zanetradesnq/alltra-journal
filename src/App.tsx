@@ -34,6 +34,7 @@ import { allTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
 import { BlockDim, setDimmedBlock, clearDimmedBlock } from "./extensions/blockDim";
+import { TrailingNode } from "./extensions/trailingNode";
 import { SlashCommand } from "./slash/SlashCommand";
 import {
   SLASH_COMMANDS,
@@ -1651,6 +1652,9 @@ export default function App() {
       TradeTable,
       IconNode,
       Banner,
+      // always keep a typeable empty paragraph after the last block (atom blocks
+      // like the trade table would otherwise trap the cursor at the doc's end)
+      TrailingNode,
       PageLink.configure({
         getEntries: () => navEntriesRef.current,
         onOpen: (date, title) => openPageLinkRef.current(date, title),
