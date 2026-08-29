@@ -1566,6 +1566,8 @@ export default function App() {
   // while in full-page mode, a top-left hamburger "peeks" the nav back in so you
   // can still browse the journal without leaving the full page (Notion-style).
   const [navPeek, setNavPeek] = useState(false);
+  // same idea for the right editor/widgets panel while in full-page mode.
+  const [panelPeek, setPanelPeek] = useState(false);
   // a banner as the first node becomes a full-bleed cover; the byline then floats
   // BELOW it (Notion-style). Track it + the byline's height (to clear the body).
   const [hasBanner, setHasBanner] = useState(false);
@@ -2231,7 +2233,8 @@ export default function App() {
   // ESC leaves full-page focus mode
   useEffect(() => {
     if (!focusMode) {
-      setNavPeek(false); // leaving full page → drop the nav peek
+      setNavPeek(false); // leaving full page → drop the peeks
+      setPanelPeek(false);
       return;
     }
     const onKey = (e: KeyboardEvent) => {
@@ -2936,21 +2939,27 @@ export default function App() {
                 >
                   {focusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 </button>
-                {/* right editor/widgets panel toggle (Notion-style; desktop) */}
-                {!focusMode && (
-                  <button
-                    onClick={() => setRightCollapsed((c) => !c)}
-                    title={rightCollapsed ? "Show side panel" : "Hide side panel"}
-                    className={
-                      "hidden h-8 w-8 place-items-center rounded-[8px] border shadow-sm transition-colors lg:grid " +
-                      (rightCollapsed
-                        ? "border-border bg-card text-text-muted hover:bg-card-hover hover:text-text"
-                        : "border-[color-mix(in_srgb,var(--alltra-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--alltra-brand)_16%,transparent)] text-[var(--alltra-brand)]")
-                    }
-                  >
-                    <PanelRight size={15} />
-                  </button>
-                )}
+                {/* right editor/widgets panel toggle (Notion-style; desktop).
+                    In full-page mode it peeks the panel in; otherwise collapses it. */}
+                {(() => {
+                  const panelShown = focusMode ? panelPeek : !rightCollapsed;
+                  return (
+                    <button
+                      onClick={() =>
+                        focusMode ? setPanelPeek((p) => !p) : setRightCollapsed((c) => !c)
+                      }
+                      title={panelShown ? "Hide side panel" : "Show side panel"}
+                      className={
+                        "hidden h-8 w-8 place-items-center rounded-[8px] border shadow-sm transition-colors lg:grid " +
+                        (panelShown
+                          ? "border-[color-mix(in_srgb,var(--alltra-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--alltra-brand)_16%,transparent)] text-[var(--alltra-brand)]"
+                          : "border-border bg-card text-text-muted hover:bg-card-hover hover:text-text")
+                      }
+                    >
+                      <PanelRight size={15} />
+                    </button>
+                  );
+                })()}
               </>
             )}
             <ShareMenu
@@ -3278,19 +3287,22 @@ export default function App() {
                   (fully hidden in full-page focus mode) */}
               <div
                 className={
-                  (focusMode ? "hidden " : "") +
+                  (focusMode && !panelPeek ? "hidden " : "") +
+                  (focusMode && panelPeek ? "pr-6 pt-6 " : "") +
                   "relative flex min-h-0 shrink-0 flex-col gap-6 pb-5 " +
                   "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 " +
-                  (rightCollapsed
-                    ? "lg:w-0 lg:overflow-hidden lg:opacity-0 "
-                    : "lg:w-[420px] xl:w-[560px] 2xl:w-[621px] ") +
+                  (focusMode
+                    ? "lg:w-[420px] xl:w-[500px] "
+                    : rightCollapsed
+                      ? "lg:w-0 lg:overflow-hidden lg:opacity-0 "
+                      : "lg:w-[420px] xl:w-[560px] 2xl:w-[621px] ") +
                   "max-lg:fixed max-lg:right-0 max-lg:top-[100px] max-lg:bottom-0 max-lg:z-[460] max-lg:w-[621px] max-lg:max-w-[94vw] max-lg:overflow-y-auto max-lg:bg-[var(--panel-bg)] max-lg:p-4 max-lg:shadow-lg max-lg:transition-transform " +
                   (panelOpen ? "max-lg:translate-x-0" : "max-lg:translate-x-full")
                 }
               >
               {/* collapse button — top-right of the panel (desktop only) */}
               <button
-                onClick={() => setRightCollapsed(true)}
+                onClick={() => (focusMode ? setPanelPeek(false) : setRightCollapsed(true))}
                 title="Collapse panel"
                 className="absolute right-4 top-5 z-30 hidden h-8 w-8 place-items-center rounded-lg border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text lg:grid"
               >
