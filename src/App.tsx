@@ -86,6 +86,7 @@ import { BlockMenu } from "./components/BlockMenu";
 import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
+import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
 import { TemplateGallery } from "./components/TemplateGallery";
 import { TableMenu } from "./components/TableMenu";
 import {
@@ -2409,6 +2410,7 @@ export default function App() {
       }
     >
       <SelectionMenu menu={menu} onAI={runAI} onClose={() => setMenu(null)} />
+      <EditorBubbleMenu editor={editor} hidden={menu !== null} />
       <EditorContextMenu editor={editor} />
       {blockMenu && editor && (
         <BlockMenu

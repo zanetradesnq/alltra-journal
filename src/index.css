@@ -319,7 +319,16 @@ h2 {
 }
 .journal ::selection,
 .journal::selection {
+  /* Accent-derived, like the desktop editor: a low-alpha accent wash with
+     accent-coloured text (the branded purple/blue selection). ::-moz-selection
+     is a separate rule below — a comma list drops in Firefox. */
   background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.journal ::-moz-selection,
+.journal::-moz-selection {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
 }
 .journal h1 {
   font-size: 3.4rem;
@@ -1140,4 +1149,45 @@ h2 {
 }
 .ctx-row--danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+/* ── Selection formatting bubble (ported from Alltra desktop) ──────────────── */
+.bubble-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+.bubble-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.bubble-btn:hover {
+  background: var(--hover-overlay-medium);
+  color: var(--text-primary);
+}
+.bubble-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.bubble-btn--active:hover {
+  color: var(--accent);
+}
+.bubble-div {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+  flex-shrink: 0;
 }
