@@ -58,6 +58,8 @@ import {  ArrowLeft,
   GripVertical,
   LayoutTemplate,
   Loader2,  Pencil,
+  Maximize2,
+  Minimize2,
   Plus,
   PanelLeft,
   PanelRight,
@@ -1493,6 +1495,9 @@ export default function App() {
   // Tracker sections the journal doesn't implement (Performance/Emotions/Trades).
   const [previewSection, setPreviewSection] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // full-page "focus" mode — hide both side panels + the paper card and render
+  // the entry as an edge-to-edge Notion-style document (Expand button / ESC).
+  const [focusMode, setFocusMode] = useState(false);
   // Below md the section sidebar is hidden (its .alltra-sidenav CSS media query
   // handles display); the content margin must drop to just the rail width.
   const [isMobile, setIsMobile] = useState(
@@ -2132,6 +2137,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, page]);
 
+  // ESC leaves full-page focus mode
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode]);
+
   // formatting commands routed through TipTap
   const toggle = {
     bold: () => editor?.chain().focus().toggleBold().run(),
@@ -2560,13 +2575,16 @@ export default function App() {
           onClose={() => setSpotlightOpen(false)}
         />
       )}
-      <AppSidebar
-        currentApp={currentApp}
-        onSwitchApp={setCurrentApp}
-        mobileOpen={navOpen}
-      />
+      {!focusMode && (
+        <AppSidebar
+          currentApp={currentApp}
+          onSwitchApp={setCurrentApp}
+          mobileOpen={navOpen}
+        />
+      )}
 
       {/* Alltra v3 section sidebar (right of the 64px app rail) */}
+      {!focusMode && (
       <AlltraSideNav
         section={activeSection}
         onSelect={(id) => {
@@ -2603,15 +2621,18 @@ export default function App() {
           newDisabled: dayIsFull,
         }}
       />
+      )}
 
       {/* everything to the right of the app rail + section sidebar */}
       <div
         className="relative flex h-screen flex-col"
         style={{
-          marginLeft: isMobile
-            ? APP_SIDEBAR_WIDTH
-            : APP_SIDEBAR_WIDTH +
-              (sidebarCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED),
+          marginLeft: focusMode
+            ? 0
+            : isMobile
+              ? APP_SIDEBAR_WIDTH
+              : APP_SIDEBAR_WIDTH +
+                (sidebarCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED),
           transition: "margin-left 0.24s cubic-bezier(0.22,0.61,0.36,1)",
         }}
       >
@@ -2697,6 +2718,14 @@ export default function App() {
                   className="grid h-8 w-8 place-items-center rounded-[8px] border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-[var(--warning)]"
                 >
                   <Trash2 size={15} />
+                </button>
+                {/* full-page focus mode toggle */}
+                <button
+                  onClick={() => setFocusMode((f) => !f)}
+                  title={focusMode ? "Exit full page (Esc)" : "Full page"}
+                  className="grid h-8 w-8 place-items-center rounded-[8px] border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text"
+                >
+                  {focusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 </button>
               </>
             )}
@@ -2945,11 +2974,12 @@ export default function App() {
             </div>
 
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className="flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] p-6">
+            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
               <main className="flex flex-1 justify-center overflow-hidden">
-                <div className="flex h-full w-full max-w-[1500px] flex-col items-center pb-5">
-                  {/* arrows flank the sheet, book-style */}
-                  <div className="flex h-full w-full items-center gap-3">
+                <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
+                  {/* arrows flank the sheet, book-style (hidden in full-page mode) */}
+                  <div className={"flex h-full w-full items-center " + (focusMode ? "" : "gap-3")}>
+                    {!focusMode && (
                     <button
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => goDay(-1)}
@@ -2961,18 +2991,24 @@ export default function App() {
                     >
                       <ChevronLeft size={19} />
                     </button>
+                    )}
 
                     {/* paper stack — a sheet inside a stack of sheets */}
                     <div className="paper-stack relative h-full min-w-0 flex-1">
-                      <div className="stack-sheet s2" />
-                      <div className="stack-sheet s1" />
+                      {!focusMode && <div className="stack-sheet s2" />}
+                      {!focusMode && <div className="stack-sheet s1" />}
                       <div
                         ref={paperRef}
-                        className="journal relative z-10 flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-border bg-[var(--surface-2)] text-text shadow-md"
+                        className={
+                          "journal relative z-10 flex h-full w-full flex-col overflow-hidden text-text " +
+                          (focusMode
+                            ? "bg-transparent"
+                            : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
+                        }
                         style={editorStyle}
                       >
                         <div
-                          className="hide-scrollbar flex-1 overflow-y-auto px-20 py-16"
+                          className={"hide-scrollbar flex-1 overflow-y-auto " + (focusMode ? "journal-focus-scroll" : "px-20 py-16")}
                           onMouseMove={onPaperMove}
                           onMouseLeave={onPaperLeave}
                         >
@@ -3051,6 +3087,7 @@ export default function App() {
                       </div>
                     </div>
 
+                    {!focusMode && (
                     <button
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => goDay(1)}
@@ -3064,6 +3101,7 @@ export default function App() {
                     >
                       <ChevronRight size={19} />
                     </button>
+                    )}
                   </div>
                 </div>
               </main>
@@ -3075,7 +3113,7 @@ export default function App() {
                 />
               )}
               {/* collapsed → floating expand button on the screen's right edge */}
-              {rightCollapsed && (
+              {rightCollapsed && !focusMode && (
                 <button
                   onClick={() => setRightCollapsed(false)}
                   title="Show panel"
@@ -3084,9 +3122,11 @@ export default function App() {
                   <ChevronLeft size={18} />
                 </button>
               )}
-              {/* right side — inline widgets on lg+, slide-over drawer below lg */}
+              {/* right side — inline widgets on lg+, slide-over drawer below lg
+                  (fully hidden in full-page focus mode) */}
               <div
                 className={
+                  (focusMode ? "hidden " : "") +
                   "relative flex min-h-0 shrink-0 flex-col gap-6 pb-5 " +
                   "lg:relative lg:h-full lg:transition-[width,opacity] lg:duration-200 " +
                   (rightCollapsed

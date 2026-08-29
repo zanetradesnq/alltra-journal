@@ -876,6 +876,11 @@ h2 {
   height: 0;
   pointer-events: none;
 }
+/* full-page focus mode — no paper card; center the document in a readable
+   Notion-style column that widens to the screen with comfortable gutters */
+.journal-focus-scroll {
+  padding: 40px max(24px, calc((100% - 860px) / 2)) 140px;
+}
 
 /* ── book-style page turn ──────────────────────────────────────────────── */
 .paper-stack {
