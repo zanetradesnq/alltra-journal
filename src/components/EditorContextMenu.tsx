@@ -13,6 +13,7 @@
  */
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -81,7 +82,12 @@ interface MenuCtx {
 const Ctx = createContext<MenuCtx>({ openId: null, setOpenId: () => {}, close: () => {} });
 const useMenu = (): MenuCtx => useContext(Ctx);
 
-/** The floating menu surface (root or submenu panel). */
+/** The move-the-highlight fn each MenuSurface provides to its own rows. */
+const HLCtx = createContext<(el: HTMLElement | null) => void>(() => {});
+const useHL = (): ((el: HTMLElement | null) => void) => useContext(HLCtx);
+
+/** The floating menu surface (root or submenu panel) — owns the single sliding
+ *  highlight that travels between its rows (the V3 Dropdown behaviour). */
 function MenuSurface({
   style,
   panelRef,
@@ -93,6 +99,16 @@ function MenuSurface({
   onMouseEnter?: () => void;
   children: ReactNode;
 }) {
+  const [hl, setHl] = useState<{ top: number; height: number } | null>(null);
+  const [armed, setArmed] = useState(false);
+  // arm the transition one frame after mount so the highlight doesn't animate from 0,0
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setArmed(true));
+    return () => cancelAnimationFrame(r);
+  }, []);
+  const move = useCallback((el: HTMLElement | null) => {
+    setHl(el ? { top: el.offsetTop, height: el.offsetHeight } : null);
+  }, []);
   return (
     <div
       ref={panelRef}
@@ -100,9 +116,16 @@ function MenuSurface({
       className="ctx-menu"
       style={style}
       onMouseEnter={onMouseEnter}
+      onMouseLeave={() => setHl(null)}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {children}
+      <div
+        className="ctx-hl"
+        aria-hidden="true"
+        data-armed={armed ? "true" : undefined}
+        style={{ transform: `translateY(${hl?.top ?? 0}px)`, height: hl?.height ?? 0, opacity: hl ? 1 : 0 }}
+      />
+      <HLCtx.Provider value={move}>{children}</HLCtx.Provider>
     </div>
   );
 }
@@ -125,13 +148,17 @@ function MenuItem({
   onSelect: () => void;
 }) {
   const { setOpenId, close } = useMenu();
+  const move = useHL();
   return (
     <button
       type="button"
       className={"ctx-row" + (destructive ? " ctx-row--danger" : "")}
       data-active={active ? "true" : undefined}
       disabled={disabled}
-      onMouseEnter={() => setOpenId(null)}
+      onMouseEnter={(e) => {
+        setOpenId(null);
+        move(e.currentTarget);
+      }}
       onClick={() => {
         if (disabled) return;
         onSelect();
@@ -152,11 +179,15 @@ function MenuItem({
 /** A colour-swatch item (the accent picker rows). */
 function SwatchItem({ hex, onSelect, children }: { hex: string; onSelect: () => void; children: ReactNode }) {
   const { setOpenId, close } = useMenu();
+  const move = useHL();
   return (
     <button
       type="button"
       className="ctx-row"
-      onMouseEnter={() => setOpenId(null)}
+      onMouseEnter={(e) => {
+        setOpenId(null);
+        move(e.currentTarget);
+      }}
       onClick={() => {
         onSelect();
         close();
@@ -184,6 +215,7 @@ function MenuSubmenu({
   children: ReactNode;
 }) {
   const { openId, setOpenId } = useMenu();
+  const move = useHL();
   const open = openId === id;
   const rowRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -222,7 +254,10 @@ function MenuSubmenu({
         ref={rowRef}
         className="ctx-row"
         data-open={open ? "true" : undefined}
-        onMouseEnter={() => setOpenId(id)}
+        onMouseEnter={(e) => {
+          setOpenId(id);
+          move(e.currentTarget);
+        }}
       >
         <span className="ctx-ico">
           <Icon size={16} />
