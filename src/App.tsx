@@ -3117,7 +3117,14 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
+            <div
+              className={
+                "flex flex-1 overflow-hidden bg-[var(--panel-bg)] " +
+                // banner entry goes flush so the banner reaches the edges; plain
+                // entries keep the floating card's breathing room
+                (focusMode ? "gap-6 p-0" : hasBanner ? "gap-0 p-0" : "gap-6 p-6")
+              }
+            >
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
@@ -3147,7 +3154,9 @@ export default function App() {
                           "journal relative z-10 flex h-full w-full flex-col overflow-hidden text-text " +
                           (focusMode
                             ? "bg-transparent"
-                            : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
+                            : hasBanner
+                              ? "rounded-b-[20px] bg-[var(--surface-2)]" // square top so the banner meets the edges
+                              : "rounded-[20px] border border-border bg-[var(--surface-2)] shadow-md")
                         }
                         style={editorStyle}
                       >
