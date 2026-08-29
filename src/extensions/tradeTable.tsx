@@ -39,6 +39,8 @@ interface Row {
 interface TableData {
   columns: Column[];
   rows: Row[];
+  /** singular noun for the add-row button ("trade" → "+ New trade"). */
+  addLabel?: string;
 }
 
 /* ── tag palette (Notion-style washed pills; readable on light + dark) ─────────── */
@@ -135,7 +137,7 @@ function defaultData(): TableData {
       [c[16].id]: [],
     },
   };
-  return { columns, rows: [sample, blankRow(columns)] };
+  return { columns, rows: [sample, blankRow(columns)], addLabel: "trade" };
 }
 function blankRow(columns: Column[]): Row {
   const cells: Record<string, Cell> = {};
@@ -154,6 +156,135 @@ function parseData(raw: unknown): TableData {
   }
   return defaultData();
 }
+
+/* ── pre-made table presets (the "some pre-made tables like a survey" ask) ─────── */
+type ColDef = [name: string, type: ColType, extra?: Partial<Column>];
+function makeTable(cols: ColDef[], rowVals: string[][], addLabel = "row"): TableData {
+  const columns: Column[] = cols.map(([name, type, extra]) => ({ id: uid(), name, type, ...extra }));
+  const rows: Row[] = (rowVals.length ? rowVals : [[]]).map((vals) => {
+    const cells: Record<string, Cell> = {};
+    columns.forEach((c, i) => (cells[c.id] = c.type === "img" ? [] : vals[i] ?? ""));
+    return { id: uid(), cells };
+  });
+  return { columns, rows, addLabel };
+}
+const YES_NO: SelectOpt[] = [
+  { label: "YES", color: "green" },
+  { label: "NO", color: "red" },
+];
+
+/** Trading self-assessment — a survey of questions you answer after a session. */
+function surveyData(): TableData {
+  return makeTable(
+    [
+      ["Question", "text", { width: 340 }],
+      [
+        "Answer",
+        "select",
+        {
+          width: 130,
+          options: [
+            { label: "Yes", color: "green" },
+            { label: "Somewhat", color: "orange" },
+            { label: "No", color: "red" },
+          ],
+        },
+      ],
+      ["Notes", "text", { width: 320 }],
+    ],
+    [
+      ["Did I follow my trading plan?"],
+      ["Did I stick to my risk per trade?"],
+      ["Was I patient and waited for A+ setups?"],
+      ["Did emotions drive any of my decisions?"],
+      ["Did I journal every trade honestly?"],
+      ["Would I take these exact trades again?"],
+    ],
+  );
+}
+
+/** Weekly review — one row per week, the metrics + reflection that matter. */
+function weeklyData(): TableData {
+  return makeTable(
+    [
+      ["Week", "date", { width: 150 }],
+      ["Trades", "num", { width: 80, sum: true }],
+      ["Win rate", "text", { width: 90 }],
+      ["Net P&L", "num", { width: 100, sum: true }],
+      ["Best trade", "text", { width: 170 }],
+      ["Biggest mistake", "text", { width: 200 }],
+      [
+        "Emotion",
+        "select",
+        {
+          width: 120,
+          options: [
+            { label: "Calm", color: "green" },
+            { label: "Confident", color: "blue" },
+            { label: "Anxious", color: "orange" },
+            { label: "Frustrated", color: "red" },
+            { label: "FOMO", color: "purple" },
+          ],
+        },
+      ],
+      [
+        "Followed plan",
+        "select",
+        {
+          width: 120,
+          options: [
+            { label: "YES", color: "green" },
+            { label: "PARTIAL", color: "orange" },
+            { label: "NO", color: "red" },
+          ],
+        },
+      ],
+      [
+        "Grade",
+        "select",
+        {
+          width: 80,
+          options: [
+            { label: "A", color: "green" },
+            { label: "B", color: "blue" },
+            { label: "C", color: "orange" },
+            { label: "D", color: "red" },
+          ],
+        },
+      ],
+      ["Lesson", "text", { width: 240 }],
+    ],
+    [[]],
+    "week",
+  );
+}
+
+/** Pre-trade checklist — tick each item before you take a trade. */
+function checklistData(): TableData {
+  return makeTable(
+    [
+      ["Checklist item", "text", { width: 340 }],
+      ["Done", "select", { width: 100, options: YES_NO }],
+      ["Note", "text", { width: 280 }],
+    ],
+    [
+      ["Market structure aligns with my bias"],
+      ["Setup matches my playbook"],
+      ["Risk is ≤ 1% of the account"],
+      ["Stop loss + target defined before entry"],
+      ["No high-impact news in the next hour"],
+      ["Not revenge trading / chasing / FOMO"],
+    ],
+    "item",
+  );
+}
+
+const PRESETS: Record<string, () => TableData> = {
+  trade: defaultData,
+  survey: surveyData,
+  weekly: weeklyData,
+  checklist: checklistData,
+};
 
 /* ── a colour-tag select cell ──────────────────────────────────────────────────── */
 function SelectCell({
@@ -408,7 +539,7 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
         </table>
       </div>
       <button type="button" className="tt-addrow" onClick={addRow}>
-        <Plus size={13} /> New trade
+        <Plus size={13} /> New {data.addLabel ?? "row"}
       </button>
     </NodeViewWrapper>
   );
@@ -418,7 +549,8 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     tradeTable: {
-      insertTradeTable: () => ReturnType;
+      /** Insert a table. `preset` picks a schema: trade (default) · survey · weekly · checklist. */
+      insertTradeTable: (preset?: string) => ReturnType;
     };
   }
 }
@@ -454,9 +586,12 @@ export const TradeTable = Node.create({
   addCommands() {
     return {
       insertTradeTable:
-        () =>
+        (preset) =>
         ({ commands }) =>
-          commands.insertContent({ type: this.name, attrs: { data: JSON.stringify(defaultData()) } }),
+          commands.insertContent({
+            type: this.name,
+            attrs: { data: JSON.stringify((PRESETS[preset ?? "trade"] ?? defaultData)()) },
+          }),
     };
   },
 });
