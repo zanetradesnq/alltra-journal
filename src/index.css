@@ -992,34 +992,6 @@ h2 {
 .journal-scroll.has-banner .ProseMirror > .node-banner + * {
   margin-top: calc(var(--byline-h, 92px) + 24px) !important;
 }
-/* NORMAL mode: the banner is rendered as a chrome cover above the card instead,
-   so hide the in-editor banner node and put the byline back at the sheet's top.
-   (Full-page mode keeps the in-editor banner + floated byline — the rules above.) */
-.journal-scroll.has-banner:not(.journal-focus-scroll) .react-renderer.node-banner {
-  display: none;
-}
-.journal-scroll.has-banner:not(.journal-focus-scroll) .jbyline {
-  position: static;
-}
-.journal-scroll.has-banner:not(.journal-focus-scroll) .ProseMirror > .node-banner + * {
-  margin-top: 0 !important;
-}
-
-/* the full-width banner cover (page chrome) — connects to the content-area edges */
-.jcover {
-  width: 100%;
-  height: 200px;
-  flex-shrink: 0;
-  cursor: pointer;
-  user-select: none;
-  overflow: hidden;
-  background-size: cover;
-  background-position: center;
-  transition: filter 0.12s ease;
-}
-.jcover:hover {
-  filter: brightness(1.03);
-}
 
 /* ── book-style page turn ──────────────────────────────────────────────── */
 .paper-stack {
