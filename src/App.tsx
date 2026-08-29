@@ -325,7 +325,7 @@ function Control({
           (shape === "circle" ? "aspect-square rounded-full " : "w-full rounded-2xl ") +
           (active
             ? "border border-[var(--alltra-brand)] bg-[rgba(var(--alltra-brand-rgb),0.08)] text-[var(--alltra-brand)]"
-            : "bg-[var(--hover-overlay-medium)] text-text-muted hover:bg-[var(--hover-overlay-strong)] hover:text-text")
+            : "bg-[var(--hover-overlay)] text-text-muted hover:bg-[var(--hover-overlay-medium)] hover:text-text")
         }
       >
         {icon}
@@ -521,7 +521,7 @@ function PinnedGrid({
                 (isDragged ? "opacity-0" : "")
               }
             >
-              <div className="grid aspect-square h-[62px] place-items-center rounded-full bg-[var(--hover-overlay-medium)] text-text-muted shadow-sm transition-colors hover:bg-[var(--hover-overlay-strong)] hover:text-text">
+              <div className="grid aspect-square h-[62px] place-items-center rounded-full bg-[var(--hover-overlay)] text-text-muted shadow-sm transition-colors hover:bg-[var(--hover-overlay-medium)] hover:text-text">
                 <Icon size={17} />
               </div>
               <span className="text-[12px] font-medium text-text-muted">
@@ -549,7 +549,7 @@ function PinnedGrid({
           >
             <div
               style={{ transform: "scale(1.06)" }}
-              className="grid aspect-square h-[62px] w-[62px] place-items-center rounded-full border border-[var(--alltra-brand)] bg-[var(--hover-overlay-strong)] text-[var(--alltra-brand)] shadow-xl"
+              className="grid aspect-square h-[62px] w-[62px] place-items-center rounded-full border border-[var(--alltra-brand)] bg-[var(--hover-overlay-medium)] text-[var(--alltra-brand)] shadow-xl"
             >
               <DragIcon size={17} />
             </div>
@@ -595,7 +595,7 @@ function VSlider({
         className="relative w-full flex-1 cursor-ns-resize select-none overflow-hidden rounded-[24px] bg-[var(--surface-3)] shadow-sm"
       >
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 bg-[var(--hover-overlay-strong)]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 bg-[var(--hover-overlay-medium)]"
           style={{ height: `${value * 100}%` }}
         />
         <span className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center text-text-muted">
