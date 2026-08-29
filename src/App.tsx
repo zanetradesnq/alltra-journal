@@ -1562,6 +1562,11 @@ export default function App() {
   // full-page "focus" mode — hide both side panels + the paper card and render
   // the entry as an edge-to-edge Notion-style document (Expand button / ESC).
   const [focusMode, setFocusMode] = useState(false);
+  // a banner as the first node becomes a full-bleed cover; the byline then floats
+  // BELOW it (Notion-style). Track it + the byline's height (to clear the body).
+  const [hasBanner, setHasBanner] = useState(false);
+  const [bylineH, setBylineH] = useState(0);
+  const bylineRef = useRef<HTMLElement>(null);
   // Below md the section sidebar is hidden (its .alltra-sidenav CSS media query
   // handles display); the content margin must drop to just the rail width.
   const [isMobile, setIsMobile] = useState(
@@ -1758,6 +1763,7 @@ export default function App() {
     editorProps: { attributes: { class: "pm", spellcheck: "false" } },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
       pagesRef.current[pageRef.current] = html;      // a provisional entry becomes a real, persisted one the moment it has content
       if (
         provisionalRef.current !== null &&
@@ -1960,6 +1966,7 @@ export default function App() {
   useLayoutEffect(() => {
     if (!editor) return;
     editor.commands.setContent(pagesRef.current[page] ?? "", false);
+    setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
     const el = paperRef.current;
     if (el) {
       el.classList.remove("page-next", "page-prev");
@@ -2226,6 +2233,19 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [focusMode]);
+
+  // measure the byline height so the body can clear it when it floats over a banner
+  useEffect(() => {
+    const el = bylineRef.current;
+    if (!el) {
+      setBylineH(0);
+      return;
+    }
+    const ro = new ResizeObserver(() => setBylineH(el.offsetHeight));
+    ro.observe(el);
+    setBylineH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [hasBanner, view, previewSection, page]);
 
   // formatting commands routed through TipTap
   const toggle = {
@@ -3092,12 +3112,18 @@ export default function App() {
                         style={editorStyle}
                       >
                         <div
-                          className={"hide-scrollbar flex-1 overflow-y-auto " + (focusMode ? "journal-focus-scroll" : "px-20 py-16")}
+                          className={
+                            "hide-scrollbar flex-1 overflow-y-auto journal-scroll " +
+                            (focusMode ? "journal-focus-scroll" : "px-20 py-16") +
+                            (hasBanner ? " has-banner" : "")
+                          }
+                          style={hasBanner ? ({ "--byline-h": `${bylineH}px` } as React.CSSProperties) : undefined}
                           onMouseMove={onPaperMove}
                           onMouseLeave={onPaperLeave}
                         >
                           {view === "editor" && !previewSection && (
                             <JournalByline
+                              ref={bylineRef}
                               name="Hussein"
                               initial="H"
                               status={

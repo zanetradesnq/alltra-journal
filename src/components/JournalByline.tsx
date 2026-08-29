@@ -6,7 +6,7 @@
  * body stays clean. The <textarea> auto-grows so a long title wraps instead of
  * running off the paper.
  */
-import { useLayoutEffect, useRef } from "react";
+import { forwardRef, useLayoutEffect, useRef } from "react";
 
 export interface JournalBylineProps {
   name: string;
@@ -20,15 +20,10 @@ export interface JournalBylineProps {
   onTitleChange: (next: string) => void;
 }
 
-export function JournalByline({
-  name,
-  initial,
-  avatarUrl,
-  status,
-  title,
-  placeholder = "Untitled",
-  onTitleChange,
-}: JournalBylineProps) {
+export const JournalByline = forwardRef<HTMLElement, JournalBylineProps>(function JournalByline(
+  { name, initial, avatarUrl, status, title, placeholder = "Untitled", onTitleChange },
+  ref,
+) {
   // auto-grow the title textarea to its content height (it's rows=1 by default)
   const titleRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
@@ -39,7 +34,7 @@ export function JournalByline({
   }, [title]);
 
   return (
-    <header className="jbyline">
+    <header ref={ref} className="jbyline">
       <div className="jbyline-meta">
         {avatarUrl ? (
           <img className="jbyline-avatar" src={avatarUrl} alt="" />
@@ -64,4 +59,4 @@ export function JournalByline({
       />
     </header>
   );
-}
+});

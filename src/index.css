@@ -950,6 +950,49 @@ h2 {
   color: var(--text-faint);
 }
 
+/* ── banner cover mode — a leading banner becomes a full-bleed cover, and the
+   byline floats just beneath it (Notion cover behaviour) ──────────────────── */
+.journal-scroll {
+  position: relative;
+}
+/* focus mode: bleed the banner to the SCREEN edges — the paper-edge margins on
+   .journal .jbanner only reach the paper card, not the full-width document */
+.journal-focus-scroll {
+  overflow-x: hidden;
+}
+.journal-focus-scroll .jbanner {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: -40px;
+  border-radius: 0;
+}
+/* with a leading banner the byline leaves the flow (so the banner is first /
+   at the very top) and floats just below the fixed 190px banner */
+.journal-scroll.has-banner .jbanner {
+  margin-bottom: 0 !important;
+}
+.journal-scroll.has-banner .jbyline {
+  position: absolute;
+  top: 202px;
+  z-index: 3;
+  margin: 0;
+  width: auto;
+}
+.journal-scroll.has-banner:not(.journal-focus-scroll) .jbyline {
+  left: 80px;
+  right: 80px;
+}
+.journal-focus-scroll.has-banner .jbyline {
+  left: max(24px, calc((100% - 860px) / 2));
+  right: max(24px, calc((100% - 860px) / 2));
+}
+/* push the body down to clear the floating byline (the banner is wrapped in a
+   .react-renderer.node-banner, so target THAT wrapper's next sibling) */
+.journal-scroll.has-banner .ProseMirror > .node-banner + * {
+  margin-top: calc(var(--byline-h, 92px) + 24px) !important;
+}
+
 /* ── book-style page turn ──────────────────────────────────────────────── */
 .paper-stack {
   perspective: 1800px;
