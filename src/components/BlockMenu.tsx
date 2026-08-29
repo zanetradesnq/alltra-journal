@@ -6,12 +6,12 @@
  *   3. Ask AI
  * "Turn into", "Color" and "Edit icon" open fly-out panels to the side.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { placeSide, useFlipPosition } from "../lib/popover";
-import { Search, Smile, CopyPlus, Sparkles, ChevronRight } from "lucide-react";
+import { Smile, CopyPlus, Sparkles, ChevronRight } from "lucide-react";
 import { MenuParagraph, MenuTextColor, MenuCopy, MenuDelete } from "../menuIcons";
 import {
   TextIcon,
@@ -82,7 +82,6 @@ type PanelProps = {
 };
 
 export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps) {
-  const [query, setQuery] = useState("");
   const [flyout, setFlyout] = useState<null | "turn" | "color" | "icon">(null);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -102,14 +101,6 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
     };
   }, [onClose]);
 
-  // the block this menu acts on
-  const node = editor.state.doc.nodeAt(pos);
-  const blockLabel = useMemo(() => {
-    const name = node?.type.name ?? "block";
-    return name === "paragraph"
-      ? "Text"
-      : name.charAt(0).toUpperCase() + name.slice(1);
-  }, [node]);
 
   // ── helpers ──────────────────────────────────────────────────────────────
   const blockRange = () => {
@@ -213,9 +204,6 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
     onClose();
   };
 
-  // ── action rows (filtered by the search box) ──────────────────────────────
-  const q = query.trim().toLowerCase();
-  const show = (label: string) => !q || label.toLowerCase().includes(q);
 
   // position: flip above when near the viewport bottom, clamp on-screen, using
   // the menu's REAL measured height (re-places when the search filter changes it)
@@ -244,24 +232,9 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
       }}
       className="rounded-[12px] border border-border bg-card p-[5px] shadow-lg"
     >
-      {/* search */}
-      <div className="mb-1 flex items-center gap-2 rounded-lg bg-[var(--hover-overlay)] px-2.5 py-1.5">
-        <Search size={13} className="text-text-faint" />
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search actions..."
-          className="w-full bg-transparent text-[12.5px] text-text outline-none placeholder:text-text-faint"
-        />
-      </div>
-
-      <p className="px-2 py-1 text-[11px] font-medium tracking-wide text-text-faint">
-        {blockLabel}
-      </p>
 
       {/* group 1 — turn into / color / edit icon */}
-      {show("Turn into") && (
+      {(
         <button
           className={row + " justify-between"}
           onMouseEnter={() => setFlyout("turn")}
@@ -273,7 +246,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
           <ChevronRight size={14} className="text-text-faint" />
         </button>
       )}
-      {show("Color") && (
+      {(
         <button
           className={row + " justify-between"}
           onMouseEnter={() => setFlyout("color")}
@@ -285,7 +258,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
           <ChevronRight size={14} className="text-text-faint" />
         </button>
       )}
-      {show("Edit icon") && (
+      {(
         <button
           className={row}
           onMouseEnter={() => setFlyout("icon")}
@@ -298,17 +271,17 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
       <div className={sep} />
 
       {/* group 2 — copy / duplicate / delete */}
-      {show("Copy") && (
+      {(
         <button className={row} onClick={copyBlock}>
           <MenuCopy size={16} className="text-text-muted" /> Copy
         </button>
       )}
-      {show("Duplicate") && (
+      {(
         <button className={row} onClick={duplicateBlock}>
           <CopyPlus size={15} className="text-text-muted" /> Duplicate
         </button>
       )}
-      {show("Delete") && (
+      {(
         <button className={row + " !text-[var(--danger)]"} onClick={deleteBlock}>
           <MenuDelete size={16} className="text-[var(--danger)]" /> Delete
         </button>
@@ -317,7 +290,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
       <div className={sep} />
 
       {/* group 3 — ask ai */}
-      {show("Ask AI") && (
+      {(
         <button
           className={row + " text-[var(--alltra-brand)]"}
           onClick={askAI}
