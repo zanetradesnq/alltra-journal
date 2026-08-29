@@ -60,6 +60,7 @@ import {  ArrowLeft,
   LayoutTemplate,
   Loader2,  Pencil,
   Maximize2,
+  Menu,
   Minimize2,
   Plus,
   PanelLeft,
@@ -101,11 +102,7 @@ import {
   type ThemeName,
   type AccentName,
 } from "./components/AppearancePanel";
-import {
-  AlltraSideNav,
-  RAIL_WIDTH_EXPANDED,
-  RAIL_WIDTH_COLLAPSED,
-} from "./components/AlltraSideNav";
+import { AlltraSideNav, RAIL_WIDTH_EXPANDED } from "./components/AlltraSideNav";
 import { NikkiPanel } from "./components/NikkiPanel";
 import { IntelligenceMark } from "./components/IntelligenceMark";
 import { TEMPLATES, type JournalTemplate } from "./templates";
@@ -2687,8 +2684,9 @@ export default function App() {
         />
       )}
 
-      {/* Alltra v3 section sidebar (right of the 64px app rail) */}
-      {!focusMode && (
+      {/* Alltra v3 section sidebar (right of the 64px app rail) — hidden when
+          collapsed; the top-left hamburger brings it back (Notion-style) */}
+      {!focusMode && !sidebarCollapsed && (
       <AlltraSideNav
         section={activeSection}
         onSelect={(id) => {
@@ -2735,8 +2733,7 @@ export default function App() {
             ? 0
             : isMobile
               ? APP_SIDEBAR_WIDTH
-              : APP_SIDEBAR_WIDTH +
-                (sidebarCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED),
+              : APP_SIDEBAR_WIDTH + (sidebarCollapsed ? 0 : RAIL_WIDTH_EXPANDED),
           transition: "margin-left 0.24s cubic-bezier(0.22,0.61,0.36,1)",
         }}
       >
@@ -2789,6 +2786,17 @@ export default function App() {
           >
             <PanelLeft size={15} />
           </button>
+
+          {/* desktop: show the hidden side panel (Notion-style hamburger) */}
+          {!focusMode && sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              title="Show sidebar"
+              className="hidden h-8 w-8 place-items-center rounded-[8px] text-text-muted transition-colors hover:bg-[var(--hover-overlay)] hover:text-text md:grid"
+            >
+              <Menu size={17} />
+            </button>
+          )}
 
           {/* left — breadcrumb (Journal ▸ entry) */}
           <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
@@ -2912,6 +2920,21 @@ export default function App() {
                 >
                   {focusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                 </button>
+                {/* right editor/widgets panel toggle (Notion-style; desktop) */}
+                {!focusMode && (
+                  <button
+                    onClick={() => setRightCollapsed((c) => !c)}
+                    title={rightCollapsed ? "Show side panel" : "Hide side panel"}
+                    className={
+                      "hidden h-8 w-8 place-items-center rounded-[8px] border shadow-sm transition-colors lg:grid " +
+                      (rightCollapsed
+                        ? "border-border bg-card text-text-muted hover:bg-card-hover hover:text-text"
+                        : "border-[color-mix(in_srgb,var(--alltra-brand)_35%,transparent)] bg-[color-mix(in_srgb,var(--alltra-brand)_16%,transparent)] text-[var(--alltra-brand)]")
+                    }
+                  >
+                    <PanelRight size={15} />
+                  </button>
+                )}
               </>
             )}
             <ShareMenu
@@ -3234,16 +3257,7 @@ export default function App() {
                   onClick={() => setPanelOpen(false)}
                 />
               )}
-              {/* collapsed → floating expand button on the screen's right edge */}
-              {rightCollapsed && !focusMode && (
-                <button
-                  onClick={() => setRightCollapsed(false)}
-                  title="Show panel"
-                  className="fixed right-3 top-1/2 z-30 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-text-muted shadow-md transition-colors hover:bg-card-hover hover:text-text lg:grid"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-              )}
+              {/* the right panel is shown/hidden from the top-bar panel toggle */}
               {/* right side — inline widgets on lg+, slide-over drawer below lg
                   (fully hidden in full-page focus mode) */}
               <div
