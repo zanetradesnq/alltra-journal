@@ -353,6 +353,10 @@ export function EditorContextMenu({ editor }: { editor: Editor | null }) {
   useEffect(() => {
     if (menu === null) return undefined;
     const onDown = (e: MouseEvent): void => {
+      // Ignore right-button presses: the contextmenu handler owns those (it
+      // repositions the menu), so treating a right-click as an outside-close
+      // would close-then-reopen with a flash.
+      if (e.button === 2) return;
       const t = e.target as Node;
       const inMenu = Array.from(document.querySelectorAll("[data-ctx-menu]")).some((n) => n.contains(t));
       if (!inMenu) close();

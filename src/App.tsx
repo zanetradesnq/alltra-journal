@@ -86,7 +86,6 @@ import { BlockMenu } from "./components/BlockMenu";
 import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
-import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
 import { TemplateGallery } from "./components/TemplateGallery";
 import { TableMenu } from "./components/TableMenu";
 import {
@@ -1880,9 +1879,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme, font, sizeV, spacingV, trackingV, align]);
 
-  // selecting text now opens the block action menu (see openBlockMenuFromSelection);
-  // the AI rewrite menu is reached from that menu's "Ask AI". This listener only
-  // CLOSES that AI menu once the selection collapses — it never opens it.
+  // Selecting text opens nothing (right-click opens the context menu; the hover
+  // grip opens the block menu). This listener only CLOSES the AI rewrite menu
+  // once the selection collapses — it never opens it.
   useEffect(() => {
     function onSelChange() {
       const sel = window.getSelection();
@@ -2301,40 +2300,9 @@ export default function App() {
     setBlockHandle(null);
   };
 
-  // highlighting text opens the block action menu (Turn into · Color · … · Ask AI)
-  // anchored to the block holding the selection, positioned at the selection rect
-  const openBlockMenuFromSelection = () => {
-    if (!editor) return;
-    const sel = editor.state.selection;
-    if (sel.empty) return;
-    const $pos = sel.$from;
-    // let TableMenu handle tables — don't open the block menu on a cell
-    for (let d = $pos.depth; d >= 1; d--) {
-      if ($pos.node(d).type.name === "table") return;
-    }
-    const LISTS = new Set(["bulletList", "orderedList", "taskList"]);
-    let pos = -1;
-    for (let d = $pos.depth; d >= 1; d--) {
-      const parent = $pos.node(d - 1);
-      if (parent.type.name === "doc" || LISTS.has(parent.type.name)) {
-        pos = $pos.before(d);
-        break;
-      }
-    }
-    if (pos < 0) return;
-    const domSel = window.getSelection();
-    let x = 0;
-    let top = 0;
-    let bottom = 0;
-    if (domSel && domSel.rangeCount) {
-      const r = domSel.getRangeAt(0).getBoundingClientRect();
-      x = r.left;
-      top = r.top;
-      bottom = r.bottom;
-    }
-    setBlockHandle(null);
-    setBlockMenu({ x, top, bottom, pos });
-  };
+  // Selecting/highlighting text no longer opens any menu (nothing shows on
+  // highlight). The block action menu is reached from the hover grip; the
+  // right-click context menu handles selection commands.
 
   // block menu "Ask AI" → select the block's text and show the AI rewrite menu
   const showAIForBlock = (pos: number) => {
@@ -2410,7 +2378,6 @@ export default function App() {
       }
     >
       <SelectionMenu menu={menu} onAI={runAI} onClose={() => setMenu(null)} />
-      <EditorBubbleMenu editor={editor} hidden={menu !== null} />
       <EditorContextMenu editor={editor} />
       {blockMenu && editor && (
         <BlockMenu
@@ -2893,7 +2860,6 @@ export default function App() {
                           className="hide-scrollbar flex-1 overflow-y-auto px-20 py-16"
                           onMouseMove={onPaperMove}
                           onMouseLeave={onPaperLeave}
-                          onMouseUp={openBlockMenuFromSelection}
                         >
                           <EditorContent editor={editor} />
                           {view === "editor" && <TableMenu editor={editor} />}
