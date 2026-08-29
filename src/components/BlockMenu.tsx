@@ -11,17 +11,8 @@ import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { placeSide, useFlipPosition } from "../lib/popover";
-import {
-  Search,
-  Repeat2,
-  Paintbrush,
-  Smile,
-  Copy as CopyIcon,
-  CopyPlus,
-  Trash2,
-  Sparkles,
-  ChevronRight,
-} from "lucide-react";
+import { Search, Smile, CopyPlus, Sparkles, ChevronRight } from "lucide-react";
+import { MenuParagraph, MenuTextColor, MenuCopy, MenuDelete } from "../menuIcons";
 import {
   TextIcon,
   Heading1Icon,
@@ -237,8 +228,8 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
   );
 
   const row =
-    "flex w-full items-center gap-2.5 rounded-lg px-2 py-[7px] text-left text-[13px] text-text transition-colors hover:bg-[var(--hover-overlay)]";
-  const sep = "my-1.5 border-t border-border";
+    "flex w-full items-center gap-2.5 rounded-[7px] px-[9px] py-[7px] text-left text-[13px] text-text transition-colors hover:bg-[var(--hover-overlay-medium)]";
+  const sep = "mx-[7px] my-[5px] border-t border-border";
 
   return createPortal(
     <div
@@ -251,10 +242,10 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
         width: W,
         zIndex: 9000,
       }}
-      className="rounded-xl border border-border bg-elevated p-1.5 shadow-lg"
+      className="rounded-[12px] border border-border bg-card p-[5px] shadow-lg"
     >
       {/* search */}
-      <div className="mb-1 flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5">
+      <div className="mb-1 flex items-center gap-2 rounded-lg bg-[var(--hover-overlay)] px-2.5 py-1.5">
         <Search size={13} className="text-text-faint" />
         <input
           autoFocus
@@ -277,7 +268,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
           onClick={() => setFlyout(flyout === "turn" ? null : "turn")}
         >
           <span className="flex items-center gap-2.5">
-            <Repeat2 size={15} className="text-text-muted" /> Turn into
+            <MenuParagraph size={16} className="text-text-muted" /> Turn into
           </span>
           <ChevronRight size={14} className="text-text-faint" />
         </button>
@@ -289,7 +280,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
           onClick={() => setFlyout(flyout === "color" ? null : "color")}
         >
           <span className="flex items-center gap-2.5">
-            <Paintbrush size={15} className="text-text-muted" /> Color
+            <MenuTextColor size={16} className="text-text-muted" /> Color
           </span>
           <ChevronRight size={14} className="text-text-faint" />
         </button>
@@ -309,7 +300,7 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
       {/* group 2 — copy / duplicate / delete */}
       {show("Copy") && (
         <button className={row} onClick={copyBlock}>
-          <CopyIcon size={15} className="text-text-muted" /> Copy
+          <MenuCopy size={16} className="text-text-muted" /> Copy
         </button>
       )}
       {show("Duplicate") && (
@@ -318,8 +309,8 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
         </button>
       )}
       {show("Delete") && (
-        <button className={row + " hover:text-[var(--warning)]"} onClick={deleteBlock}>
-          <Trash2 size={15} className="text-text-muted group-hover:text-[var(--warning)]" /> Delete
+        <button className={row + " !text-[var(--danger)]"} onClick={deleteBlock}>
+          <MenuDelete size={16} className="text-[var(--danger)]" /> Delete
         </button>
       )}
 
@@ -467,7 +458,7 @@ function Flyout({
   return (
     <div
       ref={ref}
-      className="hide-scrollbar rounded-xl border border-border bg-elevated p-1.5 shadow-lg"
+      className="hide-scrollbar rounded-[12px] border border-border bg-card p-[5px] shadow-lg"
       style={{
         position: "fixed",
         left: pos?.x ?? 0,
