@@ -3120,8 +3120,9 @@ export default function App() {
             <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
-                  {/* arrows flank the sheet, book-style (hidden in full-page mode) */}
-                  <div className={"flex h-full w-full items-center " + (focusMode ? "" : "gap-3")}>
+                  {/* the sheet fills the width; the prev/next arrows float over its
+                      side padding so the paper (and its banner) reach the edges */}
+                  <div className="relative flex h-full w-full items-center">
                     {!focusMode && (
                     <button
                       onMouseDown={(e) => e.preventDefault()}
@@ -3130,14 +3131,14 @@ export default function App() {
                         page === provisionalIndex ? dayPos <= 0 : realPos <= 0
                       }
                       title="Previous entry (this day)"
-                      className="relative z-20 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
+                      className="absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
                     >
                       <ChevronLeft size={19} />
                     </button>
                     )}
 
                     {/* paper stack — a sheet inside a stack of sheets */}
-                    <div className="paper-stack relative h-full min-w-0 flex-1">
+                    <div className="paper-stack relative h-full w-full min-w-0">
                       {!focusMode && <div className="stack-sheet s2" />}
                       {!focusMode && <div className="stack-sheet s1" />}
                       <div
@@ -3267,7 +3268,7 @@ export default function App() {
                           : realPos >= realSiblings.length - 1
                       }
                       title="Next entry (this day)"
-                      className="relative z-20 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
+                      className="absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-text-muted shadow-sm transition-colors hover:bg-card-hover hover:text-text disabled:opacity-30 disabled:hover:bg-card"
                     >
                       <ChevronRight size={19} />
                     </button>
