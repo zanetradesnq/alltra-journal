@@ -28,6 +28,7 @@ import { IconNode } from "./extensions/iconNode";
 import { Banner } from "./extensions/banner";
 import { PageLink, type PageLinkEntry } from "./extensions/pageLink";
 import { TradeLink } from "./extensions/tradeLink";
+import { TradeTable } from "./extensions/tradeTable";
 import { MOCK_TRADES } from "./trades";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
@@ -1644,6 +1645,7 @@ export default function App() {
       Callout,
       Toggle,
       Tag,
+      TradeTable,
       IconNode,
       Banner,
       PageLink.configure({

@@ -317,6 +317,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (e, r) =>
       e.chain().focus().deleteRange(r).insertContent(VERTICAL_TABLE_HTML).run(),
   },
+  {
+    id: "trade-table",
+    title: "Trade table",
+    description: "A trade log with coloured tags, P&L sums & screenshot attachments",
+    aliases: ["trade", "trades", "log", "trade log", "journal table", "database", "tracker"],
+    group: "Content table",
+    icon: TradeLinkIcon,
+    pinKind: "insert",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertTradeTable().run(),
+  },
 
   // ── Align ─────────────────────────────────────────────────────────────
   {

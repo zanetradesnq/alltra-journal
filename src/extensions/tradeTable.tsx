@@ -1,0 +1,462 @@
+/**
+ * TradeTable — a real, editable trading-journal database block (the Notion-style
+ * trade log Aayan asked for). One block = one table of trades. Columns are typed
+ * (text · number · date · select-with-coloured-tags · link · IMAGE attachments),
+ * rows are add/deletable, and a footer sums the numeric columns + counts rows.
+ *
+ * The whole table state (columns + rows, incl. base64 image attachments) rides in
+ * the node's `data` attribute as JSON, so it serialises with the entry and
+ * round-trips through the editor. Editing is driven by local React state and
+ * committed back to the node on every change (front-end prototype — a real backend
+ * + image hosting is the transfer task; base64 is fine for now).
+ */
+import { Node, mergeAttributes } from "@tiptap/core";
+import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
+import type { NodeViewProps } from "@tiptap/react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Plus, X, ImagePlus, Link2, Trash2, GripVertical } from "lucide-react";
+
+/* ── model ─────────────────────────────────────────────────────────────────── */
+type ColType = "text" | "num" | "date" | "select" | "url" | "img";
+interface SelectOpt {
+  readonly label: string;
+  readonly color: string;
+}
+interface Column {
+  id: string;
+  name: string;
+  type: ColType;
+  options?: SelectOpt[];
+  sum?: boolean;
+  width?: number;
+}
+type Cell = string | string[] | null; // text/num/date/url/select = string; img = string[]
+interface Row {
+  id: string;
+  cells: Record<string, Cell>;
+}
+interface TableData {
+  columns: Column[];
+  rows: Row[];
+}
+
+/* ── tag palette (Notion-style washed pills; readable on light + dark) ─────────── */
+const TAG: Record<string, { bg: string; fg: string }> = {
+  green: { bg: "rgba(52,199,89,0.16)", fg: "#2ea043" },
+  red: { bg: "rgba(255,69,58,0.16)", fg: "#e5484d" },
+  gray: { bg: "rgba(142,142,147,0.20)", fg: "#8b8b92" },
+  purple: { bg: "rgba(175,82,222,0.18)", fg: "#a24bd8" },
+  blue: { bg: "rgba(10,110,240,0.18)", fg: "#3b82f6" },
+  orange: { bg: "rgba(255,149,0,0.16)", fg: "#d9730d" },
+};
+const uid = (): string => Math.random().toString(36).slice(2, 9);
+
+/* ── default schema — Aayan's MFF-Phase-1 trade log ────────────────────────────── */
+function defaultData(): TableData {
+  const col = (name: string, type: ColType, extra: Partial<Column> = {}): Column => ({
+    id: uid(),
+    name,
+    type,
+    ...extra,
+  });
+  const columns: Column[] = [
+    col("Date", "date", { width: 190 }),
+    col("Pair", "text", { width: 90 }),
+    col("Trade report", "url", { width: 130 }),
+    col("Lots", "num", { width: 70, sum: true }),
+    col("Type", "select", {
+      width: 90,
+      options: [
+        { label: "LONG", color: "green" },
+        { label: "SHORT", color: "red" },
+      ],
+    }),
+    col("Entry", "num", { width: 90 }),
+    col("Setup", "text", { width: 150 }),
+    col("Timeframe", "text", { width: 110 }),
+    col("Stoploss", "num", { width: 90 }),
+    col("Exit avg", "num", { width: 90 }),
+    col("Exit logic", "select", {
+      width: 100,
+      options: [
+        { label: "TP hit", color: "green" },
+        { label: "SL Hit", color: "red" },
+        { label: "TSL Hit", color: "gray" },
+        { label: "other", color: "purple" },
+      ],
+    }),
+    col("Net P&L", "num", { width: 90, sum: true }),
+    col("ROI", "text", { width: 80 }),
+    col("Rules followed", "select", {
+      width: 120,
+      options: [
+        { label: "YES", color: "green" },
+        { label: "NO", color: "red" },
+      ],
+    }),
+    col("Money mgmt", "select", {
+      width: 110,
+      options: [
+        { label: "YES", color: "green" },
+        { label: "NO", color: "red" },
+      ],
+    }),
+    col("Risk", "select", {
+      width: 90,
+      options: [
+        { label: "FULL", color: "purple" },
+        { label: "HALF", color: "blue" },
+      ],
+    }),
+    col("Screenshots", "img", { width: 140 }),
+  ];
+  // one example row so the block reads as a real trade + shows the tags
+  const c = columns;
+  const sample: Row = {
+    id: uid(),
+    cells: {
+      [c[0].id]: "10/07/2023 2:15 AM → 2:30 AM",
+      [c[1].id]: "XAUUSD",
+      [c[2].id]: "",
+      [c[3].id]: "0.17",
+      [c[4].id]: "LONG",
+      [c[5].id]: "1920.18",
+      [c[6].id]: "Rejection from level",
+      [c[7].id]: "5 min, 15 min",
+      [c[8].id]: "1918.91",
+      [c[9].id]: "1923.18",
+      [c[10].id]: "TP hit",
+      [c[11].id]: "50.5",
+      [c[12].id]: "+1%",
+      [c[13].id]: "YES",
+      [c[14].id]: "YES",
+      [c[15].id]: "FULL",
+      [c[16].id]: [],
+    },
+  };
+  return { columns, rows: [sample, blankRow(columns)] };
+}
+function blankRow(columns: Column[]): Row {
+  const cells: Record<string, Cell> = {};
+  columns.forEach((col) => (cells[col.id] = col.type === "img" ? [] : ""));
+  return { id: uid(), cells };
+}
+
+function parseData(raw: unknown): TableData {
+  if (typeof raw === "string" && raw.length > 0) {
+    try {
+      const d = JSON.parse(raw) as TableData;
+      if (Array.isArray(d.columns) && Array.isArray(d.rows)) return d;
+    } catch {
+      /* fall through to default */
+    }
+  }
+  return defaultData();
+}
+
+/* ── a colour-tag select cell ──────────────────────────────────────────────────── */
+function SelectCell({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: SelectOpt[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const opt = options.find((o) => o.label === value);
+  useEffect(() => {
+    if (!open) return;
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ x: r.left, y: r.bottom + 4 });
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest?.("[data-tt-pop]") && t !== btnRef.current) setOpen(false);
+    };
+    document.addEventListener("mousedown", close, true);
+    return () => document.removeEventListener("mousedown", close, true);
+  }, [open]);
+  return (
+    <>
+      <button ref={btnRef} type="button" className="tt-tag-btn" onClick={() => setOpen((o) => !o)}>
+        {opt ? (
+          <span className="tt-tag" style={{ background: TAG[opt.color]?.bg, color: TAG[opt.color]?.fg }}>
+            {opt.label}
+          </span>
+        ) : (
+          <span className="tt-empty">—</span>
+        )}
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div data-tt-pop className="tt-pop" style={{ left: pos.x, top: pos.y }}>
+            {options.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                className="tt-pop-row"
+                onClick={() => {
+                  onChange(o.label);
+                  setOpen(false);
+                }}
+              >
+                <span className="tt-tag" style={{ background: TAG[o.color]?.bg, color: TAG[o.color]?.fg }}>
+                  {o.label}
+                </span>
+              </button>
+            ))}
+            {value !== "" && (
+              <button
+                type="button"
+                className="tt-pop-row tt-pop-clear"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+/* ── an image-attachment cell (Aayan's "click and attach images to a trade") ───── */
+function ImageCell({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const onFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+    e.target.value = "";
+    if (files.length === 0) return;
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res(typeof r.result === "string" ? r.result : "");
+            r.readAsDataURL(f);
+          }),
+      ),
+    ).then((urls) => onChange([...value, ...urls.filter(Boolean)]));
+  };
+  return (
+    <div className="tt-imgs">
+      {value.map((src, i) => (
+        <span key={i} className="tt-thumb">
+          <img src={src} alt="" onClick={() => setLightbox(src)} />
+          <button
+            type="button"
+            className="tt-thumb-x"
+            title="Remove"
+            onClick={() => onChange(value.filter((_, j) => j !== i))}
+          >
+            <X size={10} />
+          </button>
+        </span>
+      ))}
+      <button type="button" className="tt-attach" title="Attach screenshots" onClick={() => fileRef.current?.click()}>
+        <ImagePlus size={14} />
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />
+      {lightbox &&
+        createPortal(
+          <div className="tt-lightbox" onClick={() => setLightbox(null)}>
+            <img src={lightbox} alt="" />
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+/* ── a plain editable cell (text / num / date) + url cell ──────────────────────── */
+function TextCell({
+  value,
+  type,
+  onCommit,
+}: {
+  value: string;
+  type: ColType;
+  onCommit: (v: string) => void;
+}) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  if (type === "url") {
+    return (
+      <div className="tt-url">
+        {value ? (
+          <a href={value} target="_blank" rel="noreferrer" className="tt-url-link" onClick={(e) => e.stopPropagation()}>
+            <Link2 size={12} /> Link
+          </a>
+        ) : null}
+        <input
+          className="tt-url-input"
+          value={v}
+          placeholder="url…"
+          onChange={(e) => setV(e.target.value)}
+          onBlur={() => onCommit(v)}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </div>
+    );
+  }
+  return (
+    <input
+      className={"tt-input" + (type === "num" ? " tt-num" : "")}
+      value={v}
+      inputMode={type === "num" ? "decimal" : undefined}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => onCommit(v)}
+      onKeyDown={(e) => e.stopPropagation()}
+    />
+  );
+}
+
+/* ── the node view ─────────────────────────────────────────────────────────────── */
+function TradeTableView({ node, updateAttributes }: NodeViewProps) {
+  const [data, setData] = useState<TableData>(() => parseData(node.attrs.data));
+  const commit = (next: TableData) => {
+    setData(next);
+    updateAttributes({ data: JSON.stringify(next) });
+  };
+  const setCell = (rowId: string, colId: string, val: Cell) =>
+    commit({
+      ...data,
+      rows: data.rows.map((r) => (r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r)),
+    });
+  const addRow = () => commit({ ...data, rows: [...data.rows, blankRow(data.columns)] });
+  const delRow = (rowId: string) => commit({ ...data, rows: data.rows.filter((r) => r.id !== rowId) });
+
+  const num = (v: Cell): number => {
+    const n = Number.parseFloat(String(v ?? "").replace(/[^0-9.+-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  return (
+    <NodeViewWrapper className="tt-wrap" contentEditable={false}>
+      <div className="tt-scroll">
+        <table className="tt">
+          <thead>
+            <tr>
+              <th className="tt-th tt-th-grip" />
+              {data.columns.map((c) => (
+                <th key={c.id} className="tt-th" style={{ minWidth: c.width, width: c.width }}>
+                  {c.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((r) => (
+              <tr key={r.id} className="tt-tr">
+                <td className="tt-td tt-td-grip">
+                  <button type="button" className="tt-del" title="Delete row" onClick={() => delRow(r.id)}>
+                    <Trash2 size={12} />
+                  </button>
+                  <GripVertical size={12} className="tt-grip" />
+                </td>
+                {data.columns.map((c) => (
+                  <td key={c.id} className="tt-td" style={{ minWidth: c.width, width: c.width }}>
+                    {c.type === "select" ? (
+                      <SelectCell
+                        value={String(r.cells[c.id] ?? "")}
+                        options={c.options ?? []}
+                        onChange={(v) => setCell(r.id, c.id, v)}
+                      />
+                    ) : c.type === "img" ? (
+                      <ImageCell
+                        value={Array.isArray(r.cells[c.id]) ? (r.cells[c.id] as string[]) : []}
+                        onChange={(v) => setCell(r.id, c.id, v)}
+                      />
+                    ) : (
+                      <TextCell
+                        value={String(r.cells[c.id] ?? "")}
+                        type={c.type}
+                        onCommit={(v) => setCell(r.id, c.id, v)}
+                      />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="tt-foot">
+              <td className="tt-td tt-td-grip" />
+              {data.columns.map((c, i) => (
+                <td key={c.id} className="tt-td tt-foot-cell">
+                  {i === 0 ? (
+                    <span className="tt-count">Count {data.rows.length}</span>
+                  ) : c.sum ? (
+                    <span className="tt-sum">
+                      Σ {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
+                    </span>
+                  ) : null}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <button type="button" className="tt-addrow" onClick={addRow}>
+        <Plus size={13} /> New trade
+      </button>
+    </NodeViewWrapper>
+  );
+}
+
+/* ── the node + command ────────────────────────────────────────────────────────── */
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    tradeTable: {
+      insertTradeTable: () => ReturnType;
+    };
+  }
+}
+
+export const TradeTable = Node.create({
+  name: "tradeTable",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addAttributes() {
+    return {
+      data: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-rows") || "",
+        renderHTML: (attrs) => (attrs.data ? { "data-rows": attrs.data as string } : {}),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-type="trade-table"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-type": "trade-table" })];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(TradeTableView);
+  },
+
+  addCommands() {
+    return {
+      insertTradeTable:
+        () =>
+        ({ commands }) =>
+          commands.insertContent({ type: this.name, attrs: { data: JSON.stringify(defaultData()) } }),
+    };
+  },
+});

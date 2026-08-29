@@ -1179,3 +1179,281 @@ h2 {
   .ctx-hl[data-armed="true"] { transition: none; }
 }
 
+/* ── Trade Log table (the Notion-style trade database block) ───────────────── */
+.tt-wrap {
+  margin: 1.1rem 0;
+}
+.tt-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+.tt {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+  color: var(--text);
+}
+.tt-th,
+.tt-td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+.tt-th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 12px;
+  background: var(--bg-card-hover);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.tt-tr:hover .tt-td {
+  background: var(--hover-overlay);
+}
+.tt-td {
+  height: 38px;
+}
+.tt-th-grip,
+.tt-td-grip {
+  width: 30px;
+  min-width: 30px;
+  text-align: center;
+  position: relative;
+  color: var(--text-faint);
+  background: var(--bg-card-hover);
+}
+.tt-td-grip {
+  background: transparent;
+}
+.tt-grip {
+  opacity: 0;
+}
+.tt-tr:hover .tt-grip {
+  opacity: 0.5;
+}
+.tt-del {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  color: var(--danger);
+  cursor: pointer;
+}
+.tt-tr:hover .tt-del {
+  display: grid;
+}
+.tt-tr:hover .tt-del + .tt-grip {
+  opacity: 0;
+}
+/* cell inputs — transparent, fill the cell, no chrome until focus */
+.tt-input {
+  width: 100%;
+  height: 100%;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.tt-input:focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 4px;
+}
+.tt-num {
+  font-variant-numeric: tabular-nums;
+}
+.tt-url {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+.tt-url-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+.tt-url-input {
+  flex: 1;
+  min-width: 40px;
+  padding: 6px 2px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+/* colour-tag select cell */
+.tt-tag-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 38px;
+  padding: 4px 12px;
+  background: transparent;
+  cursor: pointer;
+}
+.tt-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tt-empty {
+  color: var(--text-faint);
+}
+.tt-pop {
+  position: fixed;
+  z-index: 720;
+  min-width: 130px;
+  padding: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  animation: ctxIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tt-pop-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.tt-pop-row:hover {
+  background: var(--hover-overlay-medium);
+}
+.tt-pop-clear {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding-left: 9px;
+}
+/* image attachment cell */
+.tt-imgs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 5px 8px;
+  min-height: 38px;
+}
+.tt-thumb {
+  position: relative;
+  display: inline-flex;
+}
+.tt-thumb img {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 5px;
+  cursor: zoom-in;
+  border: 1px solid var(--border);
+}
+.tt-thumb-x {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.tt-thumb:hover .tt-thumb-x {
+  opacity: 1;
+}
+.tt-attach {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.tt-attach:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tt-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.8);
+  cursor: zoom-out;
+  animation: fadeIn 0.15s ease;
+}
+.tt-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 10px;
+  box-shadow: var(--shadow-xl);
+}
+/* footer sums / count */
+.tt-foot .tt-td {
+  border-bottom: none;
+  height: 34px;
+  background: var(--bg-card-hover);
+}
+.tt-foot-cell {
+  padding: 0 12px;
+}
+.tt-count,
+.tt-sum {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tt-sum {
+  font-variant-numeric: tabular-nums;
+}
+.tt-addrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.tt-addrow:hover {
+  background: var(--hover-overlay);
+  color: var(--text);
+}
+
