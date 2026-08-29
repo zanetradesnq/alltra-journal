@@ -28,8 +28,8 @@ import { IconNode } from "./extensions/iconNode";
 import { Banner } from "./extensions/banner";
 import { PageLink, type PageLinkEntry } from "./extensions/pageLink";
 import { TradeLink } from "./extensions/tradeLink";
-import { TradeTable } from "./extensions/tradeTable";
-import { JournalStats } from "./extensions/journalStats";
+import { TradeTable, tradeTableHTML } from "./extensions/tradeTable";
+import { JournalStats, journalStatsHTML } from "./extensions/journalStats";
 import { MOCK_TRADES } from "./trades";
 import { allTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
@@ -182,6 +182,42 @@ function loadCustomTemplates(): JournalTemplate[] {
     return [];
   }
 }
+
+/**
+ * The assembled "Trading Journal 2026" template — a Notion/Bionics-style notebook
+ * in one page: a trade log, live performance stats, a weekly review, a pre-trade
+ * checklist and a mistakes log. Built from the real presets so the schemas stay
+ * in one place. The stats blocks read the live trade store, so they populate as
+ * trades are logged into the table above.
+ */
+const ic = (emoji: string) => `<span data-type="icon" class="jicon">${emoji}</span>`;
+const TRADING_JOURNAL_TEMPLATE: JournalTemplate = {
+  id: "trading-journal-2026",
+  name: "Trading Journal 2026",
+  description: "Full notebook — trade log, live stats, weekly review, checklist & mistakes",
+  accent: "#0066ff",
+  html:
+    `<h2>${ic("📓")} Trading Journal 2026</h2>` +
+    `<p>Your complete trading notebook — log every trade, watch your stats update live, review each week, run the checklist before you enter, and learn from your mistakes.</p>` +
+    `<hr>` +
+    `<h3>${ic("📈")} Daily Trade Log</h3>` +
+    `<p>One row per trade — entry, exit, setup, tags and screenshots. Everything you log here feeds the stats below.</p>` +
+    tradeTableHTML("trade") +
+    `<h3>${ic("📊")} Performance</h3>` +
+    `<p>Live from your logged trades.</p>` +
+    journalStatsHTML("summary") +
+    journalStatsHTML("winloss") +
+    journalStatsHTML("monthly") +
+    `<h3>${ic("🗓️")} Weekly Review</h3>` +
+    `<p>Close out each week — the numbers, the emotion, the grade and the lesson.</p>` +
+    tradeTableHTML("weekly") +
+    `<h3>${ic("✅")} Pre-trade Checklist</h3>` +
+    `<p>Tick every rule before you take a trade.</p>` +
+    tradeTableHTML("checklist") +
+    `<h3>${ic("🔧")} Mistakes / Filter</h3>` +
+    `<p>Log recurring mistakes, tag the cause, and capture the fix so you stop repeating them.</p>` +
+    tradeTableHTML("mistakes"),
+};
 
 type TrashItem = { html: string; title: string; date: string };
 
@@ -2163,7 +2199,11 @@ export default function App() {
 
   // ── templates ─────────────────────────────────────────────────────────────
   // user-made templates come first, then the built-ins
-  const allTemplates: JournalTemplate[] = [...customTemplates, ...TEMPLATES];
+  const allTemplates: JournalTemplate[] = [
+    TRADING_JOURNAL_TEMPLATE,
+    ...customTemplates,
+    ...TEMPLATES,
+  ];
 
   const applyTemplate = (t: JournalTemplate) => {
     editor?.chain().focus().insertContent(t.html).run();

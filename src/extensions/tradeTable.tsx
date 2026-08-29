@@ -364,6 +364,22 @@ const PRESETS: Record<string, () => TableData> = {
   mistakes: mistakesData,
 };
 
+/**
+ * Serialise a preset table to the editor HTML the node parses back (for the
+ * assembled "Trading Journal" template). The `id` is stripped so parseData backs
+ * a fresh one per application — otherwise two copies would collide in the store.
+ */
+export function tradeTableHTML(preset = "trade"): string {
+  const data = (PRESETS[preset] ?? defaultData)();
+  delete data.id;
+  const json = JSON.stringify(data)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return `<div data-type="trade-table" data-rows="${json}"></div>`;
+}
+
 /* ── a colour-tag select cell ──────────────────────────────────────────────────── */
 function SelectCell({
   value,

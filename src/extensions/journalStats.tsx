@@ -66,7 +66,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 function byMonth(trades: Trade[]): MonthRow[] {
   const map = new Map<string, Trade[]>();
   for (const t of trades) {
-    const d = new Date(t.date);
+    // dates may be a range ("10/07/2023 2:15 AM → 2:30 AM") — parse the first part
+    const raw = String(t.date).split("→")[0].trim();
+    const d = new Date(raw);
     const key = Number.isNaN(d.getTime())
       ? "—"
       : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -93,7 +95,9 @@ function byMonth(trades: Trade[]): MonthRow[] {
 
 /* ── formatting ────────────────────────────────────────────────────────────── */
 const money = (n: number): string =>
-  (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  n === 0
+    ? "0"
+    : (n > 0 ? "+" : "−") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const pct = (n: number): string => `${Math.round(n * 100)}%`;
 const pf = (n: number): string => (n === Infinity ? "∞" : n.toFixed(2));
 const tone = (n: number): string => (n > 0 ? "jstat-up" : n < 0 ? "jstat-down" : "");
@@ -126,7 +130,9 @@ function JournalStatsView({ node }: NodeViewProps) {
       {icon}
       <span className="jstat-title">{title}</span>
       {sample && <span className="jstat-sample">sample</span>}
-      <span className="jstat-count">{s.n} trades</span>
+      <span className="jstat-count">
+        {s.n} {s.n === 1 ? "trade" : "trades"}
+      </span>
     </div>
   );
 
@@ -143,8 +149,8 @@ function JournalStatsView({ node }: NodeViewProps) {
               <StatTile label="Win rate" value={pct(s.winRate)} />
               <StatTile label="Net P&L" value={money(s.net)} t={tone(s.net)} />
               <StatTile label="Profit factor" value={pf(s.pf)} />
-              <StatTile label="Avg win" value={money(s.avgWin)} t="jstat-up" />
-              <StatTile label="Avg loss" value={money(-s.avgLoss)} t="jstat-down" />
+              <StatTile label="Avg win" value={money(s.avgWin)} t={s.avgWin ? "jstat-up" : ""} />
+              <StatTile label="Avg loss" value={money(-s.avgLoss)} t={s.avgLoss ? "jstat-down" : ""} />
               <StatTile label="Best / Worst" value={`${money(s.best)} / ${money(s.worst)}`} />
             </div>
           </>
@@ -206,6 +212,11 @@ declare module "@tiptap/core" {
       insertJournalStats: (variant?: Variant) => ReturnType;
     };
   }
+}
+
+/** Editor HTML for a stats block (for the assembled "Trading Journal" template). */
+export function journalStatsHTML(variant: Variant = "summary"): string {
+  return `<div data-type="journal-stats" data-variant="${variant}"></div>`;
 }
 
 export const JournalStats = Node.create({
