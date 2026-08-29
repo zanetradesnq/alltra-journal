@@ -87,6 +87,7 @@ import { NotesPage } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
 import { EditorBubbleMenu } from "./components/EditorBubbleMenu";
+import { EditorColorPills } from "./components/EditorColorPills";
 import { TemplateGallery } from "./components/TemplateGallery";
 import { TableMenu } from "./components/TableMenu";
 import {
@@ -3048,6 +3049,16 @@ export default function App() {
                   </button>
                 ))}
               </div>
+            </section>
+
+            <div className="border-t border-dashed border-border" />
+
+            {/* colors */}
+            <section>
+              <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
+                Colors
+              </h3>
+              <EditorColorPills editor={editor} />
             </section>
 
             <div className="border-t border-dashed border-border" />
