@@ -1632,3 +1632,69 @@ h2 {
   padding: 24px;
 }
 
+/* ── Block drag-to-reorder — the insertion line, the ghost, the dimmed source ── */
+.drag-line {
+  position: fixed;
+  height: 2px;
+  z-index: 60;
+  background: var(--alltra-brand);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(var(--alltra-brand-rgb), 0.65);
+  pointer-events: none;
+  /* slide between drop positions instead of teleporting */
+  transition: top 0.16s cubic-bezier(0.22, 1, 0.36, 1), left 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.drag-line::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--alltra-brand);
+  transform: translateY(-50%);
+}
+.drag-ghost {
+  position: fixed;
+  z-index: 62;
+  max-width: 300px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: rotate(-1.5deg);
+  opacity: 0.96;
+  animation: ghostIn 0.12s ease;
+}
+@keyframes ghostIn {
+  from {
+    opacity: 0;
+    transform: rotate(-1.5deg) scale(0.92);
+  }
+  to {
+    opacity: 0.96;
+    transform: rotate(-1.5deg) scale(1);
+  }
+}
+.block-dragging {
+  opacity: 0.4 !important;
+  transition: opacity 0.12s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-line,
+  .drag-ghost {
+    transition: none;
+    animation: none;
+  }
+}
+

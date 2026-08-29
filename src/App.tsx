@@ -33,6 +33,7 @@ import { MOCK_TRADES } from "./trades";
 import { allTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
+import { BlockDim, setDimmedBlock, clearDimmedBlock } from "./extensions/blockDim";
 import { SlashCommand } from "./slash/SlashCommand";
 import {
   SLASH_COMMANDS,
@@ -1637,6 +1638,7 @@ export default function App() {
       FontSize,
       LetterSpacing,
       TaskListVariant,
+      BlockDim,
       TaskItem.configure({ nested: true }),
       // Notion-style content tables (the "content table" templates + /table command)
       Table.configure({ resizable: true, allowTableNodeSelection: true }),
@@ -2260,8 +2262,9 @@ export default function App() {
   // track the block under the cursor → position the ⠿ hover handle.
   // targets the most specific block: each list ITEM (not the whole list), each
   // top-level paragraph/heading, or a callout as a whole.
-  // block drag-to-reorder: a blue insertion line + the in-flight drag flags
+  // block drag-to-reorder: a blue insertion line + a ghost that follows the cursor
   const [dragLine, setDragLine] = useState<{ left: number; width: number; top: number } | null>(null);
+  const [dragGhost, setDragGhost] = useState<{ label: string; x: number; y: number } | null>(null);
   const draggingRef = useRef(false); // true while a block is being dragged
   const justDraggedRef = useRef(false); // suppresses the grip's click-to-open after a drag
 
@@ -2360,9 +2363,11 @@ export default function App() {
     schedulePersist();
   };
   const startBlockDrag = (e: React.PointerEvent) => {
-    if (!blockHandle) return;
+    if (!blockHandle || !editor) return;
     e.preventDefault();
     const from = blockHandle.pos;
+    const node = editor.state.doc.nodeAt(from);
+    const label = (node?.textContent || node?.type.name || "Block").trim().slice(0, 64) || "Empty block";
     const startX = e.clientX;
     const startY = e.clientY;
     let moved = false;
@@ -2374,7 +2379,13 @@ export default function App() {
         draggingRef.current = true;
         document.body.style.cursor = "grabbing";
         document.body.style.userSelect = "none";
+        // fade the block being lifted so the ghost reads as "the moving copy".
+        // done via a PM node decoration — mutating the node's DOM directly gets
+        // reverted by ProseMirror's own DOM observer.
+        setDimmedBlock(editor.view, from);
       }
+      // the ghost trails the cursor a touch (rAF-smooth via the browser's own paint)
+      setDragGhost({ label, x: ev.clientX, y: ev.clientY });
       const d = computeDrop(ev.clientY);
       if (d) {
         dropPos = d.pos;
@@ -2386,7 +2397,9 @@ export default function App() {
       document.removeEventListener("pointerup", onUp);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      clearDimmedBlock(editor.view);
       setDragLine(null);
+      setDragGhost(null);
       draggingRef.current = false;
       if (moved) {
         justDraggedRef.current = true; // suppress the grip's click-to-open
@@ -3006,23 +3019,22 @@ export default function App() {
                             </button>,
                             document.body
                           )}
-                        {/* block-reorder drop indicator — a blue insertion line */}
+                        {/* block-reorder drop indicator — a blue insertion line that
+                            smoothly slides between drop positions */}
                         {dragLine &&
                           createPortal(
                             <div
-                              style={{
-                                position: "fixed",
-                                left: dragLine.left,
-                                top: dragLine.top,
-                                width: dragLine.width,
-                                height: 2,
-                                background: "var(--alltra-brand)",
-                                borderRadius: 2,
-                                boxShadow: "0 0 8px rgba(var(--alltra-brand-rgb), 0.7)",
-                                zIndex: 60,
-                                pointerEvents: "none",
-                              }}
+                              className="drag-line"
+                              style={{ left: dragLine.left, top: dragLine.top, width: dragLine.width }}
                             />,
+                            document.body
+                          )}
+                        {/* the lifted block's ghost, trailing the cursor */}
+                        {dragGhost &&
+                          createPortal(
+                            <div className="drag-ghost" style={{ left: dragGhost.x + 16, top: dragGhost.y - 12 }}>
+                              {dragGhost.label}
+                            </div>,
                             document.body
                           )}
                         <span className="pointer-events-none absolute bottom-3.5 right-6 text-[12px] font-medium tabular-nums text-text-faint">
