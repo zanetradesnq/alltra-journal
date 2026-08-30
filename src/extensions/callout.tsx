@@ -83,14 +83,19 @@ export const Callout = Node.create({
       insertCallout:
         () =>
         ({ state, chain, commands }) => {
-          const { from, to, empty } = state.selection;
-          // empty cursor → just drop an empty callout to type into
+          const { from, to, empty, $from } = state.selection;
+          // empty cursor → drop an empty callout to type into. Mid-sentence
+          // (non-empty block) insert AFTER the block — inserting at the caret
+          // would split the sentence in half around the callout.
           if (empty) {
-            return commands.insertContent({
+            const box = {
               type: this.name,
               attrs: { color: "amber" },
-              content: [{ type: "paragraph" }],
-            });
+              content: [{ type: "paragraph" as const }],
+            };
+            if ($from.parent.isTextblock && $from.parent.content.size > 0)
+              return commands.insertContentAt($from.after(), box);
+            return commands.insertContent(box);
           }
           // clean wrap (paragraphs/headings) — keeps formatting in place
           if (commands.wrapIn(this.name, { color: "amber" })) return true;

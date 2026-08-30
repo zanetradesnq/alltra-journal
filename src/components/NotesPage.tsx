@@ -31,6 +31,10 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextStyle from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 import TaskItem from "@tiptap/extension-task-item";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { FontSize } from "../extensions/fontSize";
 import { LetterSpacing } from "../extensions/letterSpacing";
 import { Callout } from "../extensions/callout";
@@ -39,13 +43,25 @@ import { TextColor, BgColor, BlockStyle } from "../extensions/color";
 import { Tag } from "../extensions/tag";
 import { IconNode } from "../extensions/iconNode";
 import { Banner } from "../extensions/banner";
-import { PageLink } from "../extensions/pageLink";
+import { PageLink, type PageLinkEntry } from "../extensions/pageLink";
 import { TradeLink } from "../extensions/tradeLink";
+import { TradeTable } from "../extensions/tradeTable";
+import { JournalStats } from "../extensions/journalStats";
+import { TrailingNode } from "../extensions/trailingNode";
 import { ListExit } from "../extensions/listExit";
 import { TaskListVariant } from "../extensions/taskListVariant";
-import { SlashCommand } from "../slash/SlashCommand";
+import { SlashCommand, type SlashFavorites } from "../slash/SlashCommand";
 import { MOCK_TRADES } from "../trades";
 import { allTrades } from "../tradeStore";
+
+/** Journal wiring handed down from App so notes share pins + page links. */
+export interface NotesJournalWiring {
+  favorites?: SlashFavorites;
+  pageLinks?: {
+    getEntries: () => PageLinkEntry[];
+    onOpen: (date: string, title: string) => void;
+  };
+}
 
 export interface Note {
   id: string;
@@ -109,7 +125,17 @@ function loadNotes(): Note[] {
   return [];
 }
 
-export function NotesPage({ onBack }: { onBack: () => void }) {
+/** Every saved note's rich-HTML body — the journal's trade-store pruner scans
+ *  these too, so a trade table living in a NOTE isn't treated as deleted. */
+export function noteBodies(): string[] {
+  return loadNotes().map((n) => n.body || "");
+}
+
+export function NotesPage({
+  onBack,
+  favorites,
+  pageLinks,
+}: { onBack: () => void } & NotesJournalWiring) {
   const [notes, setNotes] = useState<Note[]>(loadNotes);
   const [query, setQuery] = useState("");
   const [composer, setComposer] = useState<Note | null>(null);
@@ -137,6 +163,23 @@ export function NotesPage({ onBack }: { onBack: () => void }) {
         : [note, ...prev]
     );
     setComposer(null);
+  };
+  // save + write localStorage SYNCHRONOUSLY — used when a page-link click
+  // navigates away in the same React batch: this page unmounts before the
+  // persist effect runs, so the async path would silently drop the edits
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const saveNow = (note: Note) => {
+    const prev = notesRef.current;
+    const next = prev.some((n) => n.id === note.id)
+      ? prev.map((n) => (n.id === note.id ? note : n))
+      : [note, ...prev];
+    try {
+      localStorage.setItem(NOTES_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    setNotes(next);
   };
   const remove = (id: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
@@ -258,6 +301,9 @@ export function NotesPage({ onBack }: { onBack: () => void }) {
             onSave={save}
             onCancel={() => setComposer(null)}
             onDelete={isExisting ? () => remove(composer.id) : undefined}
+            onSaveNow={saveNow}
+            favorites={favorites}
+            pageLinks={pageLinks}
           />,
           document.body
         )}
@@ -404,17 +450,21 @@ function NoteCard({
 function NoteEditor({
   initialHtml,
   onChange,
+  favorites,
+  pageLinks,
 }: {
   initialHtml: string;
   onChange: (html: string) => void;
-}) {
+} & NotesJournalWiring) {
   const editor = useEditor({
     extensions: [
       StarterKit,
       UnderlineExt,
       Link.configure({ openOnClick: false, autolink: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Image,
+      // allowBase64: /image inserts data URLs — without it they parse to nothing
+      // on reload and the image is silently lost
+      Image.configure({ allowBase64: true }),
       Placeholder.configure({
         showOnlyCurrent: true,
         placeholder: ({ node }) =>
@@ -431,15 +481,29 @@ function NoteEditor({
       LetterSpacing,
       TaskListVariant,
       TaskItem.configure({ nested: true }),
+      // the slash menu offers every registered command — the schema must back
+      // ALL of them here too, or picking one throws / silently mangles content
+      Table.configure({ resizable: true, allowTableNodeSelection: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Callout,
       Toggle,
       Tag,
+      TradeTable,
+      JournalStats,
       IconNode,
       Banner,
-      PageLink.configure({ getEntries: () => [], onOpen: () => {} }),
+      TrailingNode,
+      PageLink.configure({
+        getEntries: pageLinks ? pageLinks.getEntries : () => [],
+        onOpen: pageLinks ? pageLinks.onOpen : () => {},
+      }),
       TradeLink.configure({ getTrades: () => (allTrades().length ? allTrades() : MOCK_TRADES), onOpen: () => {} }),
       ListExit,
-      SlashCommand,
+      SlashCommand.configure(
+        favorites ? { favorites } : {}
+      ),
     ],
     content: initialHtml || "",
     autofocus: "end",
@@ -514,12 +578,17 @@ function Composer({
   onSave,
   onCancel,
   onDelete,
+  onSaveNow,
+  favorites,
+  pageLinks,
 }: {
   note: Note;
   onSave: (n: Note) => void;
   onCancel: () => void;
   onDelete?: () => void;
-}) {
+  /** Synchronous save (writes localStorage immediately) for navigate-away paths. */
+  onSaveNow?: (n: Note) => void;
+} & NotesJournalWiring) {
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
   const [tags, setTags] = useState<string[]>(note.tags);
@@ -541,6 +610,28 @@ function Composer({
       color,
       updatedAt: Date.now(),
     });
+
+  // opening a page link navigates to the journal, unmounting this modal in the
+  // SAME React batch — state-based saving would be discarded before the persist
+  // effect runs, so build the latest note via a ref and save synchronously.
+  const noteNowRef = useRef<() => Note>(() => note);
+  noteNowRef.current = () => ({
+    ...note,
+    title: title.trim(),
+    body,
+    tags,
+    color,
+    updatedAt: Date.now(),
+  });
+  const pageLinksForEditor = pageLinks
+    ? {
+        getEntries: pageLinks.getEntries,
+        onOpen: (date: string, linkTitle: string) => {
+          onSaveNow?.(noteNowRef.current());
+          pageLinks.onOpen(date, linkTitle);
+        },
+      }
+    : undefined;
 
   return (
     <div
@@ -583,7 +674,12 @@ function Composer({
           className="w-full bg-transparent text-[21px] font-semibold outline-none placeholder:text-text-faint"
         />
         <div className="note-paper mt-3">
-          <NoteEditor initialHtml={note.body} onChange={setBody} />
+          <NoteEditor
+            initialHtml={note.body}
+            onChange={setBody}
+            favorites={favorites}
+            pageLinks={pageLinksForEditor}
+          />
 
           {/* tags — inside the white box */}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[rgba(0,0,0,0.07)] pt-3">

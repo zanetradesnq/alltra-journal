@@ -82,10 +82,28 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
           // once Escape dismisses the menu, keep it dismissed for this "/" session —
           // otherwise the next keystroke's onUpdate re-shows the popup.
           let escaped = false;
+          // latest caret rect getter, so scrolling can re-anchor the fixed popup
+          let lastClientRect: (() => DOMRect | null) | null | undefined = null;
+          let editorDom: HTMLElement | null = null;
+
+          const reposition = () => {
+            if (popup && !escaped) positionPopup(popup, lastClientRect);
+          };
+          // clicking anywhere outside the menu + editor dismisses it (the caret
+          // never moves on such clicks, so Suggestion won't exit on its own)
+          const onDocPointerDown = (e: MouseEvent) => {
+            const t = e.target as Node | null;
+            if (!t) return;
+            if (popup?.contains(t) || editorDom?.contains(t)) return;
+            escaped = true;
+            if (popup) popup.style.display = "none";
+          };
 
           return {
             onStart: (props) => {
               escaped = false;
+              lastClientRect = props.clientRect;
+              editorDom = props.editor.view.dom as HTMLElement;
               component = new ReactRenderer(SlashCommandMenu, {
                 props: withFavorites(props),
                 editor: props.editor,
@@ -96,9 +114,12 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
               popup.appendChild(component.element);
               document.body.appendChild(popup);
               positionPopup(popup, props.clientRect);
+              window.addEventListener("scroll", reposition, true);
+              document.addEventListener("mousedown", onDocPointerDown, true);
             },
             onUpdate: (props) => {
               component?.updateProps(withFavorites(props));
+              lastClientRect = props.clientRect;
               if (popup && !escaped) {
                 popup.style.display = "";
                 positionPopup(popup, props.clientRect);
@@ -110,9 +131,14 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
                 if (popup) popup.style.display = "none";
                 return true;
               }
+              // dismissed: let keys (Enter, arrows) act on the document again —
+              // forwarding them would run commands on an invisible menu
+              if (escaped) return false;
               return component?.ref?.onKeyDown(props.event) ?? false;
             },
             onExit: () => {
+              window.removeEventListener("scroll", reposition, true);
+              document.removeEventListener("mousedown", onDocPointerDown, true);
               popup?.remove();
               popup = null;
               component?.destroy();

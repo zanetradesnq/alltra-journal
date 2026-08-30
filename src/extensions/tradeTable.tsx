@@ -26,12 +26,14 @@ import {
   Minimize2,
   ChevronLeft,
   ChevronRight,
+  Search,
+  Star,
 } from "lucide-react";
 import type { Trade } from "../trades";
 import { setTableTrades } from "../tradeStore";
 
 /* ── model ─────────────────────────────────────────────────────────────────── */
-type ColType = "text" | "num" | "date" | "select" | "url" | "img";
+type ColType = "text" | "num" | "date" | "select" | "url" | "img" | "rating";
 interface SelectOpt {
   readonly label: string;
   readonly color: string;
@@ -43,6 +45,10 @@ interface Column {
   options?: SelectOpt[];
   sum?: boolean;
   width?: number;
+  /** v3 column-group label (Trade info / Performance / …). Contiguous runs of
+   *  the same group render one collapsible group-header cell above them; absent
+   *  on legacy tables → no group tier renders (fully backward compatible). */
+  group?: string;
 }
 type Cell = string | string[] | null; // text/num/date/url/select = string; img = string[]
 interface Row {
@@ -77,9 +83,21 @@ const COL_TYPES: { type: ColType; label: string }[] = [
   { type: "select", label: "Tag" },
   { type: "url", label: "Link" },
   { type: "img", label: "Image" },
+  { type: "rating", label: "Rating" },
 ];
 
-/* ── default schema — Aayan's MFF-Phase-1 trade log ────────────────────────────── */
+/* ── v3 symbol chip — auto-hue avatar tile, stable per symbol (Alltra v3) ────── */
+const CHIP_HUES = [
+  "#2b7fff", "#8e51ff", "#00b8db", "#00bc7d", "#fe9a00",
+  "#f6339a", "#00bba7", "#615fff", "#ff2056", "#00a6f4",
+];
+function chipHue(symbol: string): string {
+  let h = 0;
+  for (let i = 0; i < symbol.length; i++) h = (h * 31 + symbol.charCodeAt(i)) >>> 0;
+  return CHIP_HUES[h % CHIP_HUES.length];
+}
+
+/* ── default schema — the v3 Trades-page log (Alltra desktop design), grouped ──── */
 function defaultData(): TableData {
   const col = (name: string, type: ColType, extra: Partial<Column> = {}): Column => ({
     id: uid(),
@@ -88,24 +106,38 @@ function defaultData(): TableData {
     ...extra,
   });
   const columns: Column[] = [
-    col("Date", "date", { width: 190 }),
-    col("Pair", "text", { width: 90 }),
-    col("Trade report", "url", { width: 130 }),
-    col("Lots", "num", { width: 70, sum: true }),
+    // Trade info — identity of the trade
+    col("Pair", "text", { width: 120, group: "Trade info" }),
     col("Type", "select", {
-      width: 90,
+      width: 96,
+      group: "Trade info",
       options: [
-        { label: "LONG", color: "green" },
-        { label: "SHORT", color: "red" },
+        { label: "Long", color: "green" },
+        { label: "Short", color: "red" },
       ],
     }),
-    col("Entry", "num", { width: 90 }),
-    col("Setup", "text", { width: 150 }),
-    col("Timeframe", "text", { width: 110 }),
-    col("Stoploss", "num", { width: 90 }),
-    col("Exit avg", "num", { width: 90 }),
+    col("Status", "select", {
+      width: 110,
+      group: "Trade info",
+      options: [
+        { label: "Win", color: "green" },
+        { label: "Loss", color: "red" },
+        { label: "Breakeven", color: "gray" },
+        { label: "Open", color: "blue" },
+      ],
+    }),
+    col("Setup", "text", { width: 150, group: "Trade info" }),
+    // Performance — the money
+    col("Net P&L", "num", { width: 110, sum: true, group: "Performance" }),
+    col("ROI", "text", { width: 80, group: "Performance" }),
+    col("Lots", "num", { width: 80, sum: true, group: "Performance" }),
+    // Prices
+    col("Entry", "num", { width: 100, group: "Prices" }),
+    col("Stoploss", "num", { width: 100, group: "Prices" }),
+    col("Exit avg", "num", { width: 100, group: "Prices" }),
     col("Exit logic", "select", {
       width: 100,
+      group: "Prices",
       options: [
         { label: "TP hit", color: "green" },
         { label: "SL Hit", color: "red" },
@@ -113,53 +145,49 @@ function defaultData(): TableData {
         { label: "other", color: "purple" },
       ],
     }),
-    col("Net P&L", "num", { width: 90, sum: true }),
-    col("ROI", "text", { width: 80 }),
-    col("Rules followed", "select", {
-      width: 120,
-      options: [
-        { label: "YES", color: "green" },
-        { label: "NO", color: "red" },
-      ],
-    }),
-    col("Money mgmt", "select", {
-      width: 110,
-      options: [
-        { label: "YES", color: "green" },
-        { label: "NO", color: "red" },
-      ],
-    }),
+    // Dates
+    col("Date", "date", { width: 190, group: "Dates" }),
+    col("Timeframe", "text", { width: 110, group: "Dates" }),
+    // Metrics
+    col("Rating", "rating", { width: 130, group: "Metrics" }),
+    // Meta — discipline + evidence
+    col("Rules followed", "select", { width: 120, group: "Meta", options: YES_NO }),
+    col("Money mgmt", "select", { width: 110, group: "Meta", options: YES_NO }),
     col("Risk", "select", {
       width: 90,
+      group: "Meta",
       options: [
         { label: "FULL", color: "purple" },
         { label: "HALF", color: "blue" },
       ],
     }),
-    col("Screenshots", "img", { width: 140 }),
+    col("Trade report", "url", { width: 130, group: "Meta" }),
+    col("Screenshots", "img", { width: 140, group: "Meta" }),
   ];
   // one example row so the block reads as a real trade + shows the tags
   const c = columns;
   const sample: Row = {
     id: uid(),
     cells: {
-      [c[0].id]: "10/07/2023 2:15 AM → 2:30 AM",
-      [c[1].id]: "XAUUSD",
-      [c[2].id]: "",
-      [c[3].id]: "0.17",
-      [c[4].id]: "LONG",
-      [c[5].id]: "1920.18",
-      [c[6].id]: "Rejection from level",
-      [c[7].id]: "5 min, 15 min",
+      [c[0].id]: "XAUUSD",
+      [c[1].id]: "Long",
+      [c[2].id]: "Win",
+      [c[3].id]: "Rejection from level",
+      [c[4].id]: "50.5",
+      [c[5].id]: "+1%",
+      [c[6].id]: "0.17",
+      [c[7].id]: "1920.18",
       [c[8].id]: "1918.91",
       [c[9].id]: "1923.18",
       [c[10].id]: "TP hit",
-      [c[11].id]: "50.5",
-      [c[12].id]: "+1%",
-      [c[13].id]: "YES",
+      [c[11].id]: "10/07/2023 2:15 AM → 2:30 AM",
+      [c[12].id]: "5 min, 15 min",
+      [c[13].id]: "4",
       [c[14].id]: "YES",
-      [c[15].id]: "FULL",
-      [c[16].id]: [],
+      [c[15].id]: "YES",
+      [c[16].id]: "FULL",
+      [c[17].id]: "",
+      [c[18].id]: [],
     },
   };
   return { columns, rows: [sample], addLabel: "trade", id: uid() };
@@ -596,10 +624,13 @@ function TextCell({
   value,
   type,
   onCommit,
+  tone,
 }: {
   value: string;
   type: ColType;
   onCommit: (v: string) => void;
+  /** v3 valence color for the display value (Net P&L green/red). */
+  tone?: "profit" | "loss" | null;
 }) {
   const [v, setV] = useState(value);
   const [editing, setEditing] = useState(false);
@@ -624,19 +655,33 @@ function TextCell({
     );
   }
   const isNum = type === "num";
+  const toneClass = tone === "profit" ? " tt-profit" : tone === "loss" ? " tt-loss" : "";
   // non-focused, non-empty cells render a truncating display span — inputs can't
   // ellipsis, so a long value like "1920.18" clips mid-glyph in a narrow column.
   // Click swaps to the editable input (Notion's exact behaviour).
   if (!editing && value !== "") {
     return (
-      <div className={"tt-val" + (isNum ? " tt-num" : "")} title={value} onClick={() => setEditing(true)}>
+      <div
+        className={"tt-val" + (isNum ? " tt-num" : "") + toneClass}
+        title={value}
+        onClick={() => setEditing(true)}
+      >
         {value}
+      </div>
+    );
+  }
+  // v3: an empty, non-focused cell shows a quiet em dash ("unknown", not zero);
+  // clicking it swaps to the input, exactly like a filled cell
+  if (!editing && value === "") {
+    return (
+      <div className={"tt-val tt-dash" + (isNum ? " tt-num" : "")} onClick={() => setEditing(true)}>
+        —
       </div>
     );
   }
   return (
     <input
-      className={"tt-input" + (isNum ? " tt-num" : "")}
+      className={"tt-input" + (isNum ? " tt-num" : "") + toneClass}
       value={v}
       autoFocus={editing}
       inputMode={isNum ? "decimal" : undefined}
@@ -651,11 +696,39 @@ function TextCell({
   );
 }
 
+/* ── v3 rating cell — five interactive stars (hover preview, click to set/clear) ── */
+function StarsCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [hover, setHover] = useState(0);
+  const set = Math.max(0, Math.min(5, Number.parseInt(value, 10) || 0));
+  const shown = hover || set;
+  return (
+    <div className="tt-stars" onMouseLeave={() => setHover(0)}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={"tt-star" + (n <= shown ? " tt-star--on" : "")}
+          title={`${n} star${n === 1 ? "" : "s"}`}
+          onMouseEnter={() => setHover(n)}
+          onClick={() => onChange(n === set ? "" : String(n))}
+        >
+          <Star size={14} fill={n <= shown ? "currentColor" : "none"} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── the node view ─────────────────────────────────────────────────────────────── */
 function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   const [data, setData] = useState<TableData>(() => parseData(node.attrs.data));
   const [expanded, setExpanded] = useState(false);
   const [colMenu, setColMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  // v3 chrome — view-only state (never persisted into the node)
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(25);
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(() => new Set());
 
   const commit = (next: TableData) => {
     setData(next);
@@ -664,6 +737,20 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   };
   // publish this trade table's rows to the store on mount, so "Link to trade" sees them
   useEffect(() => {
+    // template HTML arrives without an id (tradeTableHTML strips it) and
+    // parseData mints one — commit it to the node NOW, or every remount mints
+    // a new key and re-publishes the same rows as duplicate phantom trades
+    let hadId = false;
+    try {
+      const raw = node.attrs.data as unknown;
+      hadId =
+        typeof raw === "string" &&
+        raw.length > 0 &&
+        !!(JSON.parse(raw) as { id?: string }).id;
+    } catch {
+      /* unparseable → treat as missing */
+    }
+    if (!hadId) updateAttributes({ data: JSON.stringify(data) });
     if (data.addLabel === "trade" && data.id) setTableTrades(data.id, mapTrades(data));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -672,7 +759,13 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
       ...data,
       rows: data.rows.map((r) => (r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: val } } : r)),
     });
-  const addRow = () => commit({ ...data, rows: [...data.rows, blankRow(data.columns)] });
+  const addRow = () => {
+    commit({ ...data, rows: [...data.rows, blankRow(data.columns)] });
+    // the fresh blank row must be VISIBLE: a blank row never matches a search
+    // query, and it lands on the last page — clear the filter and jump there
+    setQuery("");
+    setPage(Math.max(1, Math.ceil((data.rows.length + 1) / perPage)));
+  };
   const delRow = (rowId: string) => commit({ ...data, rows: data.rows.filter((r) => r.id !== rowId) });
 
   // ── column operations (add · rename · retype · move · delete · add tag option) ──
@@ -710,7 +803,12 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
               ...r,
               cells: { ...r.cells, [id]: Array.isArray(r.cells[id]) ? r.cells[id] : [] },
             }))
-          : data.rows,
+          : type === "rating"
+            ? data.rows.map((r) => ({
+                ...r,
+                cells: { ...r.cells, [id]: Array.isArray(r.cells[id]) ? "" : r.cells[id] },
+              }))
+            : data.rows,
     });
   const delColumn = (id: string) => {
     if (data.columns.length <= 1) return;
@@ -749,27 +847,211 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
     return Number.isFinite(n) ? n : 0;
   };
 
+  /* ── v3 view model — search · pagination · collapsible column groups ─────── */
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? data.rows.filter((r) =>
+        data.columns.some((c) => {
+          const v = r.cells[c.id];
+          return typeof v === "string" && v.toLowerCase().includes(q);
+        })
+      )
+    : data.rows;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+  const firstShown = filtered.length === 0 ? 0 : (safePage - 1) * perPage + 1;
+  const lastShown = (safePage - 1) * perPage + pageRows.length;
+  const noun = data.addLabel ?? "row";
+  const nounFor = (n: number) => (n === 1 ? noun : `${noun}s`);
+
+  // contiguous same-group column runs — one collapsible group cell per run
+  const hasGroups = data.columns.some((c) => c.group);
+  const runs: { group: string; cols: Column[] }[] = [];
+  for (const c of data.columns) {
+    const g = c.group ?? "";
+    const last = runs[runs.length - 1];
+    if (last && last.group === g) last.cols.push(c);
+    else runs.push({ group: g, cols: [c] });
+  }
+  const isCollapsed = (g: string) => g !== "" && collapsedGroups.has(g);
+  const toggleGroup = (g: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+  const renderedColCount = runs.reduce((s, run) => s + (isCollapsed(run.group) ? 1 : run.cols.length), 0);
+
+  // presentation roles (v3 cell treatments, resolved by column name/type)
+  const symbolColId = data.columns.find((c) => c.type === "text" && /pair|symbol/i.test(c.name))?.id;
+  const pnlColIds = new Set(
+    data.columns.filter((c) => c.type === "num" && /p&l|pnl|profit|p\/l/i.test(c.name)).map((c) => c.id)
+  );
+  const hasSums = data.columns.some((c) => c.sum);
+
+  const headerCell = (c: Column, tier2: boolean) => (
+    <th
+      key={c.id}
+      className={
+        "tt-th tt-th-btn" + (c.type === "num" ? " tt-th-num" : "") + (tier2 ? " tt-th--tier2" : "")
+      }
+      style={{ minWidth: c.width, width: c.width }}
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setColMenu({ id: c.id, x: r.left, y: r.bottom + 4 });
+      }}
+    >
+      {c.name}
+    </th>
+  );
+
+  const bodyCell = (r: Row, c: Column) => {
+    const raw = r.cells[c.id];
+    if (c.type === "select")
+      return (
+        <SelectCell
+          value={String(raw ?? "")}
+          options={c.options ?? []}
+          onChange={(v) => setCell(r.id, c.id, v)}
+          onAddOption={(label) => addOptionAndSelect(r.id, c.id, label)}
+        />
+      );
+    if (c.type === "img")
+      return (
+        <ImageCell
+          value={Array.isArray(raw) ? raw : []}
+          onChange={(v) => setCell(r.id, c.id, v)}
+        />
+      );
+    if (c.type === "rating")
+      return <StarsCell value={String(raw ?? "")} onChange={(v) => setCell(r.id, c.id, v)} />;
+    // symbol column — the v3 auto-hue avatar chip beside the editable ticker
+    if (c.id === symbolColId) {
+      const sym = String(raw ?? "").trim().toUpperCase();
+      const hue = chipHue(sym || "?");
+      return (
+        <span className="tt-symwrap">
+          {sym !== "" && (
+            <span
+              className="tt-symchip"
+              style={{ background: `color-mix(in srgb, ${hue} 14%, transparent)`, color: hue }}
+            >
+              {sym.slice(0, 2)}
+            </span>
+          )}
+          <TextCell value={String(raw ?? "")} type={c.type} onCommit={(v) => setCell(r.id, c.id, v)} />
+        </span>
+      );
+    }
+    // valence tone on P&L figures (v3: profit green, loss red, zero calm)
+    const tone = pnlColIds.has(c.id)
+      ? num(raw) > 0
+        ? ("profit" as const)
+        : num(raw) < 0
+          ? ("loss" as const)
+          : null
+      : null;
+    return (
+      <TextCell value={String(raw ?? "")} type={c.type} tone={tone} onCommit={(v) => setCell(r.id, c.id, v)} />
+    );
+  };
+
+  // window the page pills: all pages when ≤7, else 1 … around current … last
+  const pagePills: (number | "…")[] = [];
+  if (pageCount <= 7) for (let p = 1; p <= pageCount; p++) pagePills.push(p);
+  else {
+    pagePills.push(1);
+    if (safePage > 3) pagePills.push("…");
+    for (let p = Math.max(2, safePage - 1); p <= Math.min(pageCount - 1, safePage + 1); p++) pagePills.push(p);
+    if (safePage < pageCount - 2) pagePills.push("…");
+    pagePills.push(pageCount);
+  }
+
   const table = (
-    <>
+    <div className="tt-card">
+      {/* ── toolbar — search · expand · add (v3 band) ─────────────────────── */}
+      <div className="tt-toolbar">
+        <div className="tt-search">
+          <Search size={13} className="tt-search-ico" />
+          <input
+            value={query}
+            placeholder={`Search ${nounFor(2)}...`}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+          {query !== "" && (
+            <button type="button" className="tt-search-x" title="Clear" onClick={() => setQuery("")}>
+              <X size={11} />
+            </button>
+          )}
+        </div>
+        <div className="tt-toolbar-actions">
+          <button
+            type="button"
+            className="tt-iconbtn"
+            title={expanded ? "Close full screen" : "Open full screen"}
+            onClick={() => setExpanded((e) => !e)}
+          >
+            {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+          <button type="button" className="tt-primary" onClick={addRow}>
+            <Plus size={14} /> Add {noun}
+          </button>
+        </div>
+      </div>
+
       <div className="tt-scroll">
         <table className="tt">
           <thead>
+            {hasGroups && (
+              <tr className="tt-gtr">
+                <th className="tt-gth tt-th-grip" />
+                {runs.map((run, i) =>
+                  isCollapsed(run.group) ? (
+                    <th key={`g${String(i)}`} className="tt-gth tt-gth--stub">
+                      <button
+                        type="button"
+                        className="tt-gtog"
+                        title={`Expand ${run.group}`}
+                        onClick={() => toggleGroup(run.group)}
+                      >
+                        <ChevronRight size={12} />
+                      </button>
+                    </th>
+                  ) : (
+                    <th key={`g${String(i)}`} className="tt-gth" colSpan={run.cols.length}>
+                      {run.group !== "" && (
+                        <button
+                          type="button"
+                          className="tt-gtog"
+                          title={`Collapse ${run.group}`}
+                          onClick={() => toggleGroup(run.group)}
+                        >
+                          <ChevronLeft size={12} />
+                          <span>{run.group}</span>
+                        </button>
+                      )}
+                    </th>
+                  )
+                )}
+                <th className="tt-gth tt-th-add" />
+              </tr>
+            )}
             <tr>
-              <th className="tt-th tt-th-grip" />
-              {data.columns.map((c) => (
-                <th
-                  key={c.id}
-                  className={"tt-th tt-th-btn" + (c.type === "num" ? " tt-th-num" : "")}
-                  style={{ minWidth: c.width, width: c.width }}
-                  onClick={(e) => {
-                    const r = e.currentTarget.getBoundingClientRect();
-                    setColMenu({ id: c.id, x: r.left, y: r.bottom + 4 });
-                  }}
-                >
-                  {c.name}
-                </th>
-              ))}
-              <th className="tt-th tt-th-add">
+              <th className={"tt-th tt-th-grip" + (hasGroups ? " tt-th--tier2" : "")} />
+              {runs.map((run, i) =>
+                isCollapsed(run.group) ? (
+                  <th key={`s${String(i)}`} className={"tt-th tt-th--stub" + (hasGroups ? " tt-th--tier2" : "")} />
+                ) : (
+                  run.cols.map((c) => headerCell(c, hasGroups))
+                )
+              )}
+              <th className={"tt-th tt-th-add" + (hasGroups ? " tt-th--tier2" : "")}>
                 <button type="button" className="tt-addcol" title="Add column" onClick={addColumn}>
                   <Plus size={14} />
                 </button>
@@ -777,7 +1059,7 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
             </tr>
           </thead>
           <tbody>
-            {data.rows.map((r) => (
+            {pageRows.map((r) => (
               <tr key={r.id} className="tt-tr">
                 <td className="tt-td tt-td-grip">
                   <button type="button" className="tt-del" title="Delete row" onClick={() => delRow(r.id)}>
@@ -785,66 +1067,130 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
                   </button>
                   <GripVertical size={12} className="tt-grip" />
                 </td>
-                {data.columns.map((c) => (
-                  <td key={c.id} className="tt-td" style={{ minWidth: c.width, width: c.width }}>
-                    {c.type === "select" ? (
-                      <SelectCell
-                        value={String(r.cells[c.id] ?? "")}
-                        options={c.options ?? []}
-                        onChange={(v) => setCell(r.id, c.id, v)}
-                        onAddOption={(label) => addOptionAndSelect(r.id, c.id, label)}
-                      />
-                    ) : c.type === "img" ? (
-                      <ImageCell
-                        value={Array.isArray(r.cells[c.id]) ? (r.cells[c.id] as string[]) : []}
-                        onChange={(v) => setCell(r.id, c.id, v)}
-                      />
-                    ) : (
-                      <TextCell value={String(r.cells[c.id] ?? "")} type={c.type} onCommit={(v) => setCell(r.id, c.id, v)} />
-                    )}
-                  </td>
-                ))}
+                {runs.map((run, i) =>
+                  isCollapsed(run.group) ? (
+                    <td key={`s${String(i)}`} className="tt-td tt-td--stub" />
+                  ) : (
+                    run.cols.map((c) => (
+                      <td key={c.id} className="tt-td" style={{ minWidth: c.width, width: c.width }}>
+                        {bodyCell(r, c)}
+                      </td>
+                    ))
+                  )
+                )}
                 <td className="tt-td tt-td-add" />
               </tr>
             ))}
-          </tbody>
-          <tfoot>
-            <tr className="tt-foot">
-              <td className="tt-td tt-td-grip" />
-              {data.columns.map((c, i) => (
-                <td key={c.id} className="tt-td tt-foot-cell">
-                  {i === 0 ? (
-                    <span className="tt-count">
-                      {data.rows.length} {data.rows.length === 1 ? "row" : "rows"}
-                    </span>
-                  ) : c.sum ? (
-                    <span className="tt-sum">
-                      <span style={{ color: "var(--text-faint)" }}>Σ</span>{" "}
-                      {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
-                    </span>
-                  ) : null}
+            {pageRows.length === 0 && (
+              <tr className="tt-tr">
+                <td className="tt-td tt-emptyrow" colSpan={renderedColCount + 2}>
+                  {q !== ""
+                    ? `No ${nounFor(2)} match “${query.trim()}”.`
+                    : `No ${nounFor(2)} yet — add one below.`}
                 </td>
-              ))}
-              <td className="tt-td tt-td-add" />
-            </tr>
-          </tfoot>
+              </tr>
+            )}
+          </tbody>
+          {hasSums && (
+            <tfoot>
+              <tr className="tt-foot">
+                <td className="tt-td tt-td-grip" />
+                {runs.map((run, i) =>
+                  isCollapsed(run.group) ? (
+                    <td key={`s${String(i)}`} className="tt-td tt-foot-cell tt-td--stub" />
+                  ) : (
+                    run.cols.map((c) => (
+                      <td key={c.id} className="tt-td tt-foot-cell">
+                        {c.sum ? (
+                          <span className="tt-sum">
+                            <span style={{ color: "var(--text-faint)" }}>Σ</span>{" "}
+                            {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
+                          </span>
+                        ) : null}
+                      </td>
+                    ))
+                  )
+                )}
+                <td className="tt-td tt-td-add" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
+
+      {/* ── v3 footer band — count · pagination · rows-per-page ───────────── */}
+      <div className="tt-footbar">
+        <span className="tt-showing">
+          {filtered.length === 0
+            ? q !== ""
+              ? `No ${nounFor(2)} match`
+              : `No ${nounFor(2)} yet`
+            : `Showing ${String(firstShown)}–${String(lastShown)} of ${String(filtered.length)} ${nounFor(filtered.length)}`}
+        </span>
+        <div className="tt-pager">
+          <button
+            type="button"
+            className="tt-page-arrow"
+            disabled={safePage <= 1}
+            title="Previous page"
+            onClick={() => setPage(safePage - 1)}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          {pagePills.map((p, i) =>
+            p === "…" ? (
+              <span key={`e${String(i)}`} className="tt-page-ellipsis">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                className={"tt-page" + (p === safePage ? " tt-page--on" : "")}
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            className="tt-page-arrow"
+            disabled={safePage >= pageCount}
+            title="Next page"
+            onClick={() => setPage(safePage + 1)}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+        <label className="tt-perpage">
+          <span>Rows per page</span>
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[10, 25, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <button type="button" className="tt-addrow" onClick={addRow}>
-        <Plus size={13} /> New {data.addLabel ?? "row"}
+        <Plus size={13} /> New {noun}
       </button>
-    </>
+    </div>
   );
 
   const col = colMenu ? data.columns.find((c) => c.id === colMenu.id) : undefined;
 
   return (
     <NodeViewWrapper className="tt-wrap" contentEditable={false}>
-      <div className="tt-bar">
-        <button type="button" className="tt-expand" title="Open full screen" onClick={() => setExpanded(true)}>
-          <Maximize2 size={13} /> Expand
-        </button>
-      </div>
       {!expanded && table}
       {colMenu && col && (
         <ColumnMenu

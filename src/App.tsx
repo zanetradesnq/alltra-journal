@@ -31,7 +31,7 @@ import { TradeLink } from "./extensions/tradeLink";
 import { TradeTable, tradeTableHTML } from "./extensions/tradeTable";
 import { JournalStats, journalStatsHTML } from "./extensions/journalStats";
 import { MOCK_TRADES } from "./trades";
-import { allTrades } from "./tradeStore";
+import { allTrades, pruneTrades } from "./tradeStore";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
 import { BlockDim, setDimmedBlock, clearDimmedBlock } from "./extensions/blockDim";
@@ -91,8 +91,8 @@ import {
 import { TodaysJournalWidget } from "./components/TodaysJournalWidget";
 import { JournalQualityWidget } from "./components/JournalQualityWidget";
 import { BlockMenu } from "./components/BlockMenu";
-import { JournalByline } from "./components/JournalByline";
-import { NotesPage } from "./components/NotesPage";
+import { JournalByline, TITLE_MAX } from "./components/JournalByline";
+import { NotesPage, noteBodies } from "./components/NotesPage";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
 import { TemplateGallery } from "./components/TemplateGallery";
@@ -274,11 +274,39 @@ function htmlToText(html: string): string {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
 
-// does an entry have real content (beyond an empty doc)? — the commit gate
+// does an entry have real content (beyond an empty doc)? — the commit gate.
+// Text counts, but so do content atoms that serialize with no text (an image,
+// a banner, a table, a stats block) — an image-only entry is a real entry.
 function hasMeaningfulContent(html: string): boolean {
-  return htmlToText(html).length > 0;
+  if (htmlToText(html).length > 0) return true;
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  return !!el.querySelector(
+    'img[src], table, [data-type="banner"], [data-type="trade-table"], [data-type="journal-stats"], [data-type="page-link"], [data-type="trade-link"]'
+  );
 }
 
+
+// every trade-table id present in the given HTML payloads (for store pruning)
+function collectTradeTableIds(htmls: string[]): Set<string> {
+  const ids = new Set<string>();
+  const el = document.createElement("div");
+  for (const html of htmls) {
+    if (!html || !html.includes("trade-table")) continue;
+    el.innerHTML = html;
+    el.querySelectorAll('[data-type="trade-table"]').forEach((n) => {
+      try {
+        const data = JSON.parse(n.getAttribute("data-rows") || "{}") as {
+          id?: string;
+        };
+        if (data.id) ids.add(data.id);
+      } catch {
+        /* unparseable table — leave its store entry alone by adding nothing */
+      }
+    });
+  }
+  return ids;
+}
 
 // "Today" / "Yesterday" / "Jun 23" for a YYYY-MM-DD date row label
 function fmtDateLabel(dateStr: string): string {
@@ -415,7 +443,9 @@ function PinnedGrid({
 }: {
   ids: string[];
   editor: Editor | null;
-  pinnedSelRef: { current: { from: number; to: number } | null };
+  pinnedSelRef: {
+    current: { from: number; to: number; node?: boolean } | null;
+  };
   onReorder: (next: string[]) => void;
 }) {
   // favorites that actually render (skip Text-Editor-panel dupes + unknown ids)
@@ -453,8 +483,11 @@ function PinnedGrid({
     // capture the editor selection up-front so a plain tap still runs the
     // command exactly where the caret was
     if (editor) {
-      const { from, to } = editor.state.selection;
-      pinnedSelRef.current = { from, to };
+      const sel = editor.state.selection;
+      // remember a block NodeSelection (image, table…) as such — restoring it
+      // as a TextSelection would make insert commands REPLACE the node
+      const node = (sel as unknown as { node?: { isBlock?: boolean } }).node;
+      pinnedSelRef.current = { from: sel.from, to: sel.to, node: !!node?.isBlock };
     }
     const el = wrapRefs.current[id];
     if (!el) return;
@@ -521,8 +554,10 @@ function PinnedGrid({
       const cmd = SLASH_COMMANDS.find((c) => c.id === d.id);
       if (cmd) {
         const sel = pinnedSelRef.current;
-        if (sel && sel.to <= editor.state.doc.content.size)
-          editor.commands.setTextSelection(sel);
+        if (sel && sel.to <= editor.state.doc.content.size) {
+          if (sel.node) editor.commands.setNodeSelection(sel.from);
+          else editor.commands.setTextSelection(sel);
+        }
         runFavoriteCommand(editor, cmd);
       }
     }
@@ -1538,6 +1573,8 @@ export default function App() {
   authoringRef.current = authoring;
   const [nikkiOpen, setNikkiOpen] = useState(false); // mock AI panel
   const [isSaved, setIsSaved] = useState(true);
+  // localStorage write failed (quota / private mode) — surfaced instead of a fake "Saved"
+  const [saveError, setSaveError] = useState(false);
   const saveTimer = useRef<number | undefined>(undefined);
   // a provisional entry (last index) is open but NOT yet persisted — it commits
   // when real content is typed, and is discarded if left empty.
@@ -1602,7 +1639,11 @@ export default function App() {
   // selection captured the instant a pinned button is pressed (mouse-down, before
   // the click can disturb it) — the genuine cursor/highlight, whichever it is.
   // restored before the command runs so it lands exactly where you were.
-  const pinnedSelRef = useRef<{ from: number; to: number } | null>(null);
+  const pinnedSelRef = useRef<{
+    from: number;
+    to: number;
+    node?: boolean;
+  } | null>(null);
 
   // refs mirror state so TipTap's long-lived callbacks never read stale values
   const pageRef = useRef(page);
@@ -1690,10 +1731,22 @@ export default function App() {
           ...settingsRef.current,
         } satisfies Saved)
       );
+      setIsSaved(true);
+      setSaveError(false);
     } catch {
-      /* ignore quota / private-mode errors */
+      // quota / private-mode: the write FAILED — say so instead of "Saved"
+      setSaveError(true);
     }
-    setIsSaved(true);
+    // drop trade-store entries whose table no longer exists in any page, trash
+    // item, or saved note (a deleted trade table otherwise feeds stats +
+    // "Link to trade" forever)
+    pruneTrades(
+      collectTradeTableIds([
+        ...pages,
+        ...trashRef.current.map((t) => t.html),
+        ...noteBodies(),
+      ])
+    );
   };
 
   const schedulePersist = () => {
@@ -2278,7 +2331,32 @@ export default function App() {
   ];
 
   const applyTemplate = (t: JournalTemplate) => {
-    editor?.chain().focus().insertContent(t.html).run();
+    if (!editor) return;
+    // a template's leading heading is its TITLE — it belongs in the byline's
+    // title slot, not duplicated as the first body block. Extract it (skipping
+    // a leading banner, which stays in the body), fill the entry title when
+    // it's still blank, and insert the remainder.
+    const el = document.createElement("div");
+    el.innerHTML = t.html;
+    let first = el.firstElementChild;
+    if (first?.getAttribute("data-type") === "banner")
+      first = first.nextElementSibling;
+    let html = t.html;
+    if (first && /^H[1-3]$/.test(first.tagName)) {
+      const headerText = (first.textContent || "").replace(/\s+/g, " ").trim();
+      if (headerText) {
+        first.remove();
+        html = el.innerHTML;
+        const p = pageRef.current;
+        setEntryTitles((prev) => {
+          if (prev[p]?.trim()) return prev; // never clobber a user-typed title
+          const n = [...prev];
+          n[p] = headerText.slice(0, TITLE_MAX);
+          return n;
+        });
+      }
+    }
+    editor.chain().focus().insertContent(html).run();
     setTemplatesOpen(false);
   };
 
@@ -2528,6 +2606,7 @@ export default function App() {
     const onUp = () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       clearDimmedBlock(editor.view);
@@ -2542,6 +2621,9 @@ export default function App() {
     };
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
+    // a cancelled pointer (alt-tab, browser gesture) must also end the drag —
+    // otherwise the lifted block stays dimmed forever
+    document.addEventListener("pointercancel", onUp);
   };
 
   // Selecting/highlighting text no longer opens any menu (nothing shows on
@@ -2581,7 +2663,12 @@ export default function App() {
       date,
       text: htmlToText(pagesRef.current[i] ?? ""),
     }))
-    .filter((e) => e.text.length > 0 && e.index !== provisionalIndex)
+    // text-empty entries still count when they hold real atoms (image, banner…)
+    .filter(
+      (e) =>
+        e.index !== provisionalIndex &&
+        (e.text.length > 0 || hasMeaningfulContent(pagesRef.current[e.index] ?? ""))
+    )
     .sort((a, b) =>
       a.date < b.date ? 1 : a.date > b.date ? -1 : b.index - a.index
     )
@@ -2589,8 +2676,9 @@ export default function App() {
       index: e.index,
       date: e.date,
       label: fmtDateLabel(e.date),
-      title: titles[e.index] || "",
-      snippet: e.text.slice(0, 70),
+      // the chrome title (byline) wins — template headers live there now
+      title: entryTitles[e.index]?.trim() || titles[e.index] || "",
+      snippet: e.text.slice(0, 70) || "Image / attachment",
     }));
 
   // current day's pages, for the book arrows + the "n / m" page count
@@ -2602,8 +2690,12 @@ export default function App() {
   // wire the PageLink node to the live entry list + navigation
   navEntriesRef.current = navEntries;
   openPageLinkRef.current = (date: string, title: string) => {
+    // match on the same title navEntries exposes (chrome title first)
     let idx = dates.findIndex(
-      (d, i) => d === date && (titles[i] || "") === title && i !== provisionalIndex
+      (d, i) =>
+        d === date &&
+        (entryTitles[i]?.trim() || titles[i] || "") === title &&
+        i !== provisionalIndex
     );
     if (idx < 0) idx = dates.findIndex((d) => d === date);
     if (idx < 0) return;
@@ -2828,7 +2920,7 @@ export default function App() {
               </button>
               <ChevronRight size={14} className="shrink-0 text-text-faint" />
             </span>
-            <span className="truncate font-semibold text-text">
+            <span className="max-w-[420px] truncate font-semibold text-text">
               {view === "editor"
                 ? entryTitles[page]?.trim() || titles[page] || "Untitled"
                 : previewSection
@@ -2871,16 +2963,28 @@ export default function App() {
                 <span
                   className={
                     "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors " +
-                    (isSaved
+                    (isSaved && !saveError
                       ? "bg-[var(--hover-overlay)] text-text-muted"
                       : "bg-[var(--warning-bg)] text-[var(--warning)]")
+                  }
+                  title={
+                    saveError
+                      ? "localStorage is full or unavailable — remove or shrink large images to save"
+                      : undefined
                   }
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full"
-                    style={{ background: isSaved ? "#22c55e" : "var(--warning)" }}
+                    style={{
+                      background:
+                        isSaved && !saveError ? "#22c55e" : "var(--warning)",
+                    }}
                   />
-                  {isSaved ? "Saved" : "Saving…"}
+                  {saveError
+                    ? "Couldn't save — storage full"
+                    : isSaved
+                      ? "Saved"
+                      : "Saving…"}
                 </span>
                 <ChromeBtn title="Undo" onClick={undo}>
                   <ArrowLeft size={15} />
@@ -3117,7 +3221,7 @@ export default function App() {
         >
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* canvas — editor paper + right widget float together on the soft canvas */}
-            <div className={"flex flex-1 gap-6 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "p-0" : "p-6")}>
+            <div className={"flex flex-1 overflow-hidden bg-[var(--panel-bg)] " + (focusMode ? "gap-0 p-0" : "gap-6 p-6")}>
               <main className="flex flex-1 justify-center overflow-hidden">
                 <div className={"flex h-full w-full flex-col items-center " + (focusMode ? "max-w-none" : "max-w-[1500px] pb-5")}>
                   {/* the sheet fills the width; the prev/next arrows float over its
@@ -3167,9 +3271,11 @@ export default function App() {
                               name="Hussein"
                               initial="H"
                               status={
-                                isSaved
-                                  ? `Last updated at ${updatedStamp(updatedAt)}`
-                                  : "Saving…"
+                                saveError
+                                  ? "Couldn't save — storage full"
+                                  : isSaved
+                                    ? `Last updated at ${updatedStamp(updatedAt)}`
+                                    : "Saving…"
                               }
                               title={entryTitles[page] ?? ""}
                               placeholder={titles[page] || "Untitled"}
@@ -3610,7 +3716,17 @@ export default function App() {
             drawer as the editor, content to the right */}
         {view === "notes" && (
           <div className="flex flex-1 overflow-hidden">
-            <NotesPage onBack={goCalendar} />
+            <NotesPage
+              onBack={goCalendar}
+              favorites={{
+                getIds: () => favoritesRef.current,
+                onToggle: toggleFavorite,
+              }}
+              pageLinks={{
+                getEntries: () => navEntriesRef.current,
+                onOpen: (date, title) => openPageLinkRef.current(date, title),
+              }}
+            />
           </div>
         )}
       </div>

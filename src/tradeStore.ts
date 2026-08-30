@@ -46,3 +46,16 @@ export function setTableTrades(tableId: string, trades: Trade[]): void {
 export function allTrades(): Trade[] {
   return Object.values(read()).flat();
 }
+
+/**
+ * Drop store entries whose table no longer exists anywhere in the document
+ * (deleting a trade-table block otherwise leaves its trades counted forever).
+ * Called on persist with the ids of every table still present in pages + trash.
+ */
+export function pruneTrades(keepIds: Set<string>): void {
+  const s = read();
+  const stale = Object.keys(s).filter((id) => !keepIds.has(id));
+  if (stale.length === 0) return;
+  stale.forEach((id) => delete s[id]);
+  write(s);
+}

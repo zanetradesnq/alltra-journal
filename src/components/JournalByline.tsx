@@ -8,6 +8,10 @@
  */
 import { forwardRef, useLayoutEffect, useRef } from "react";
 
+/** Hard cap on the entry title — long enough for a real title, short enough
+ *  that the breadcrumb/nav rows stay sane. Shared with template application. */
+export const TITLE_MAX = 100;
+
 export interface JournalBylineProps {
   name: string;
   initial: string;
@@ -51,11 +55,14 @@ export const JournalByline = forwardRef<HTMLElement, JournalBylineProps>(functio
         ref={titleRef}
         className="jbyline-title"
         rows={1}
+        maxLength={TITLE_MAX}
         value={title}
         placeholder={placeholder}
         aria-label="Journal title"
         spellCheck={false}
-        onChange={(event) => onTitleChange(event.target.value)}
+        // slice too: maxLength doesn't clamp a programmatic value, and paste
+        // near the limit can otherwise land a full unclamped string in state
+        onChange={(event) => onTitleChange(event.target.value.slice(0, TITLE_MAX))}
       />
     </header>
   );

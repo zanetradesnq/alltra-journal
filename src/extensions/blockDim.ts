@@ -22,8 +22,14 @@ export const BlockDim = Extension.create({
           init: () => DecorationSet.empty,
           apply(tr, old) {
             const meta = tr.getMeta(blockDimKey) as number | null | undefined;
-            // no meta on this tr → just keep the deco mapped through doc changes
-            if (meta === undefined) return old.map(tr.mapping, tr.doc);
+            if (meta === undefined) {
+              // self-heal: the dim only needs to live through a drag, and a drag
+              // never changes the doc — so any doc change means the drag is over
+              // and a surviving dim is stale (lost pointerup, alt-tab mid-drag).
+              // Without this a block can stay greyed out indefinitely.
+              if (tr.docChanged && old.find().length) return DecorationSet.empty;
+              return old.map(tr.mapping, tr.doc);
+            }
             if (meta === null) return DecorationSet.empty; // clear
             const node = tr.doc.nodeAt(meta);
             if (!node) return DecorationSet.empty;

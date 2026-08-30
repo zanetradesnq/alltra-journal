@@ -177,6 +177,11 @@ function ImageView({
 }
 
 export const ResizableImage = Image.extend({
+  // /image inserts data URLs; without allowBase64 the stock parse rule skips
+  // them, so every image would silently vanish on reload / page switch
+  addOptions() {
+    return { ...this.parent?.(), allowBase64: true };
+  },
   addAttributes() {
     return {
       ...this.parent?.(),

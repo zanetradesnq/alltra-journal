@@ -86,17 +86,26 @@ const useMenu = (): MenuCtx => useContext(Ctx);
 const HLCtx = createContext<(el: HTMLElement | null) => void>(() => {});
 const useHL = (): ((el: HTMLElement | null) => void) => useContext(HLCtx);
 
+/** Which submenu the surface belongs to (null = the root panel). Rows assert
+ *  this on hover: root rows CLOSE any open flyout, submenu rows KEEP their own
+ *  flyout open — without this, hovering a row inside a flyout would
+ *  setOpenId(null) and dismiss the very panel the row lives in. */
+const SurfaceCtx = createContext<string | null>(null);
+
 /** The floating menu surface (root or submenu panel) — owns the single sliding
  *  highlight that travels between its rows (the V3 Dropdown behaviour). */
 function MenuSurface({
   style,
   panelRef,
   onMouseEnter,
+  surfaceId = null,
   children,
 }: {
   style: CSSProperties;
   panelRef?: (el: HTMLDivElement | null) => void;
   onMouseEnter?: () => void;
+  /** The submenu id this surface renders (omit for the root panel). */
+  surfaceId?: string | null;
   children: ReactNode;
 }) {
   const [hl, setHl] = useState<{ top: number; height: number } | null>(null);
@@ -125,7 +134,9 @@ function MenuSurface({
         data-armed={armed ? "true" : undefined}
         style={{ transform: `translateY(${hl?.top ?? 0}px)`, height: hl?.height ?? 0, opacity: hl ? 1 : 0 }}
       />
-      <HLCtx.Provider value={move}>{children}</HLCtx.Provider>
+      <SurfaceCtx.Provider value={surfaceId}>
+        <HLCtx.Provider value={move}>{children}</HLCtx.Provider>
+      </SurfaceCtx.Provider>
     </div>
   );
 }
@@ -149,6 +160,7 @@ function MenuItem({
 }) {
   const { setOpenId, close } = useMenu();
   const move = useHL();
+  const surfaceId = useContext(SurfaceCtx);
   return (
     <button
       type="button"
@@ -156,7 +168,8 @@ function MenuItem({
       data-active={active ? "true" : undefined}
       disabled={disabled}
       onMouseEnter={(e) => {
-        setOpenId(null);
+        // root row → retract any open flyout; flyout row → keep own flyout open
+        setOpenId(surfaceId);
         move(e.currentTarget);
       }}
       onClick={() => {
@@ -180,12 +193,13 @@ function MenuItem({
 function SwatchItem({ hex, onSelect, children }: { hex: string; onSelect: () => void; children: ReactNode }) {
   const { setOpenId, close } = useMenu();
   const move = useHL();
+  const surfaceId = useContext(SurfaceCtx);
   return (
     <button
       type="button"
       className="ctx-row"
       onMouseEnter={(e) => {
-        setOpenId(null);
+        setOpenId(surfaceId);
         move(e.currentTarget);
       }}
       onClick={() => {
@@ -268,6 +282,7 @@ function MenuSubmenu({
       {open &&
         createPortal(
           <MenuSurface
+            surfaceId={id}
             panelRef={(el) => (panelRef.current = el)}
             onMouseEnter={() => setOpenId(id)}
             style={{

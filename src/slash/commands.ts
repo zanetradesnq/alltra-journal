@@ -173,7 +173,19 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     group: "Basic blocks",
     icon: QuoteIcon,
     pinKind: "format",
-    run: (e, r) => applyAt(e, r, (c) => c.toggleBlockquote()),
+    // blockquote can't wrap a list item directly (its content spec needs a
+    // leading paragraph) — lift out of the list first, exactly like the
+    // setNode fallback that makes headings work inside lists
+    run: (e, r) =>
+      applyAt(e, r, (c) =>
+        c
+          .command(({ can, commands }) =>
+            e.isActive("blockquote") || can().wrapIn("blockquote")
+              ? true
+              : commands.clearNodes()
+          )
+          .toggleBlockquote()
+      ),
   },
   {
     id: "callout",
@@ -494,10 +506,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (e, r) => {
       const url = window.prompt("Link URL");
       const chain = e.chain().focus().deleteRange(r);
+      // insert as a text node + link mark (not an HTML string) so URLs with
+      // <, &, entities etc. survive verbatim instead of being HTML-parsed
       if (url)
-        chain.insertContent(
-          `<a href="${url.replace(/"/g, "&quot;")}">${url}</a>`
-        );
+        chain.insertContent({
+          type: "text",
+          text: url,
+          marks: [{ type: "link", attrs: { href: url } }],
+        });
       chain.run();
     },
   },
@@ -590,19 +606,33 @@ export function runFavoriteCommand(editor: Editor, command: SlashCommand): void 
   if (command.pinKind === "insert") {
     const sel = editor.state.selection;
     const $from = sel.$from;
-    const isEmpty =
-      sel.empty && $from.parent.isTextblock && $from.parent.content.size === 0;
-    if (!isEmpty) {
-      try {
-        const after = $from.after();
-        editor
-          .chain()
-          .focus()
-          .insertContentAt(after, { type: "paragraph" })
-          .setTextSelection(after + 1)
-          .run();
-      } catch {
-        editor.chain().focus().run();
+    // a selected block atom (image, trade table, stats…): $from.after() throws
+    // at depth 0 and the insert would then REPLACE the selected node — put the
+    // fresh paragraph after the node instead, so the insert lands below it
+    const selNode = (sel as unknown as { node?: { isBlock?: boolean } }).node;
+    if (selNode?.isBlock) {
+      const after = sel.to;
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(after, { type: "paragraph" })
+        .setTextSelection(after + 1)
+        .run();
+    } else {
+      const isEmpty =
+        sel.empty && $from.parent.isTextblock && $from.parent.content.size === 0;
+      if (!isEmpty) {
+        try {
+          const after = $from.after();
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(after, { type: "paragraph" })
+            .setTextSelection(after + 1)
+            .run();
+        } catch {
+          editor.chain().focus().run();
+        }
       }
     }
   }
@@ -633,5 +663,13 @@ export function filterCommands(
     })
     .filter((x) => x.score > 0);
   scored.sort((a, b) => b.score - a.score);
-  return scored.map((x) => x.cmd);
+  // keep each group contiguous (ordered by its best match) — the menu renders a
+  // header whenever the group CHANGES, so interleaved groups repeat headers.
+  // The overall best match still leads: its group comes first, it first within.
+  const groupOrder: string[] = [];
+  for (const { cmd } of scored)
+    if (!groupOrder.includes(cmd.group)) groupOrder.push(cmd.group);
+  return groupOrder.flatMap((g) =>
+    scored.filter((x) => x.cmd.group === g).map((x) => x.cmd)
+  );
 }
