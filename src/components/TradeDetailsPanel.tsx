@@ -205,11 +205,14 @@ export function TradeDetailsPanel({
       );
     (groups.get(g) ?? groups.set(g, []).get(g)!).push({ label: c.name, value, tone });
   }
-  const groupKeys = [...ORDER.filter((g) => groups.has(g)), ...[...groups.keys()].filter((g) => !ORDER.includes(g))];
   const hasMetricsWidgets = rating > 0 || rmul !== "" || mfe !== "" || mae !== "";
   // the Metrics columns are ALL widget-rendered, so the group never appears in
-  // the scalar map — append a synthetic section or the widgets never render
-  if (hasMetricsWidgets && !groupKeys.includes("Metrics")) groupKeys.push("Metrics");
+  // the scalar map — slot the synthetic section at its ORDER position (an
+  // append would drop the widgets below misc "Details" rows)
+  const groupKeys = [
+    ...ORDER.filter((g) => groups.has(g) || (g === "Metrics" && hasMetricsWidgets)),
+    ...[...groups.keys()].filter((g) => !ORDER.includes(g)),
+  ];
 
   const fav = Math.abs(numOf(mfe));
   const adv = Math.abs(numOf(mae));

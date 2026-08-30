@@ -210,7 +210,7 @@ function TradeLinkView({ node, updateAttributes, extension, editor, deleteNode, 
       if (!popRef.current?.contains(t) && !ref.current?.contains(t)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);

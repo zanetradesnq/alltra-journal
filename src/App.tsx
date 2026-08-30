@@ -1217,7 +1217,7 @@ function TrashModal({
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1311,7 +1311,7 @@ function ShareMenu({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -2204,8 +2204,9 @@ export default function App() {
     return pagesRef.current[page] ?? "";
   };
   const fileSlug = () =>
-    (titles[page] || "entry").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "") ||
-    "entry";
+    (entryTitles[page]?.trim() || titles[page] || "entry")
+      .replace(/[^\w]+/g, "-")
+      .replace(/^-|-$/g, "") || "entry";
 
   const copyMarkdown = () =>
     navigator.clipboard?.writeText(htmlToMarkdown(currentHtml()));
@@ -2222,6 +2223,10 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
   const printEntry = () => {
+    // open SYNCHRONOUSLY in the click — after an await the user activation
+    // expires and popup blockers silently eat the window
+    const w = window.open("", "_blank", "width=820,height=1040");
+    if (!w) return;
     void (async () => {
       // resolve idb:// screenshots to blob URLs BEFORE writing — the print
       // window has no script to read IndexedDB, so raw refs render broken
@@ -2238,9 +2243,7 @@ export default function App() {
           }
         })
       );
-      const w = window.open("", "_blank", "width=820,height=1040");
-      if (!w) return;
-      const title = titles[page] || "Entry";
+      const title = entryTitles[page]?.trim() || titles[page] || "Entry";
       w.document.write(PRINT_SHELL(title, holder.innerHTML));
       w.document.close();
       w.focus();

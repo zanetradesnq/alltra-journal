@@ -83,7 +83,7 @@ function TagView({ node, updateAttributes, extension }: NodeViewProps) {
         setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
