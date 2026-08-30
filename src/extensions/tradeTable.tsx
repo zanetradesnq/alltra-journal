@@ -419,7 +419,9 @@ function SelectCell({
     if (r) setPos({ x: r.left, y: r.bottom + 4 });
     const close = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (!t.closest?.("[data-tt-pop]") && t !== btnRef.current) setOpen(false);
+      // containment, not identity — the click lands on the pill/icon INSIDE
+      // the trigger, and identity made mousedown close + click reopen
+      if (!t.closest?.("[data-tt-pop]") && !btnRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener("mousedown", close, true);
     return () => document.removeEventListener("mousedown", close, true);
@@ -804,6 +806,27 @@ function RBar({ value }: { value: string }) {
   );
 }
 
+/* every LIVE table view claims its store id here — a second mount with the
+   same id (a duplicated block) is detected and re-minted at mount */
+const liveTableIds = new Map<string, symbol>();
+
+/* v3 view state survives the inline↔fullscreen remount via this per-table
+   cache (the fullscreen overlay portals the surface, remounting the React
+   tree — without the cache every search/sort/selection reset on toggle) */
+interface V3ViewState {
+  query: string;
+  page: number;
+  perPage: number;
+  collapsed: ReadonlySet<string>;
+  hidden: ReadonlySet<string>;
+  sort: { colId: string; dir: "asc" | "desc" } | null;
+  selected: ReadonlySet<string>;
+  view: "table" | "cards";
+  filterResult: string;
+  filterDir: string;
+}
+const v3ViewCache = new Map<string, V3ViewState>();
+
 /** Ask the app to open a trade's details panel (node views have no App access). */
 export const openTradeDetails = (tradeId: string): void => {
   window.dispatchEvent(new CustomEvent("alltra:trade", { detail: { id: tradeId } }));
@@ -828,7 +851,7 @@ function RowKebab({
     if (r) setPos({ x: r.right, y: r.bottom + 4 });
     const close = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (!t.closest?.("[data-tpp-kebab]") && t !== btnRef.current) setOpen(false);
+      if (!t.closest?.("[data-tpp-kebab]") && !btnRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener("mousedown", close, true);
     return () => document.removeEventListener("mousedown", close, true);
@@ -917,18 +940,24 @@ function TradeTableV3({
   expanded,
   onToggleExpand,
 }: V3Props) {
-  /* view-only state — never persisted into the node */
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(25);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
-  const [sort, setSort] = useState<{ colId: string; dir: "asc" | "desc" } | null>(null);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  /* view-only state — never persisted into the node; seeded from (and written
+     back to) the per-table cache so it survives the fullscreen remount */
+  const cached = v3ViewCache.get(data.id ?? "");
+  const [query, setQuery] = useState(cached?.query ?? "");
+  const [page, setPage] = useState(cached?.page ?? 1);
+  const [perPage, setPerPage] = useState(cached?.perPage ?? 25);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => cached?.collapsed ?? new Set());
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => cached?.hidden ?? new Set());
+  const [sort, setSort] = useState<{ colId: string; dir: "asc" | "desc" } | null>(cached?.sort ?? null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => cached?.selected ?? new Set());
   const [collapseMotion, setCollapseMotion] = useState(false);
-  const [view, setView] = useState<"table" | "cards">("table");
-  const [filterResult, setFilterResult] = useState<string>("all");
-  const [filterDir, setFilterDir] = useState<string>("all");
+  const [view, setView] = useState<"table" | "cards">(cached?.view ?? "table");
+  const [filterResult, setFilterResult] = useState<string>(cached?.filterResult ?? "all");
+  const [filterDir, setFilterDir] = useState<string>(cached?.filterDir ?? "all");
+  useEffect(() => {
+    if (data.id)
+      v3ViewCache.set(data.id, { query, page, perPage, collapsed, hidden, sort, selected, view, filterResult, filterDir });
+  });
   const [panel, setPanel] = useState<"filters" | "columns" | null>(null);
   const panelBtnRef = useRef<HTMLButtonElement>(null);
   const colsBtnRef = useRef<HTMLButtonElement>(null);
@@ -1023,6 +1052,11 @@ function TradeTableV3({
   const filtered = rows;
   const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(page, pageCount);
+  // write the clamp back — a stale out-of-range page number would resurface
+  // (and jump the view) the next time the row count grows
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
   const pageRows = filtered.slice((safePage - 1) * perPage, safePage * perPage);
   const firstShown = filtered.length === 0 ? 0 : (safePage - 1) * perPage + 1;
   const lastShown = (safePage - 1) * perPage + pageRows.length;
@@ -1040,8 +1074,15 @@ function TradeTableV3({
   const pageIds = pageRows.map((r) => r.id);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const someSelected = !allSelected && pageIds.some((id) => selected.has(id));
+  // merge with the previous set — replacing it would silently discard rows
+  // selected on OTHER pages right before a bulk delete
   const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(pageIds));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
   const toggleRow = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -1071,11 +1112,12 @@ function TradeTableV3({
   const headerTiers = hasGroups ? 2 : 1;
   const gridTemplateRows = `repeat(${String(headerTiers + bodyCount)}, max-content) minmax(0, 1fr)`;
   /* Σ sums for the footer count line (the v3 footer has no sum row) */
+  // sums describe the FILTERED set the count line beside them describes
   const sums = data.columns
     .filter((c) => c.sum)
     .map((c) => ({
       name: c.name,
-      total: data.rows.reduce((s, r) => s + numOf(r.cells[c.id]), 0),
+      total: filtered.reduce((s, r) => s + numOf(r.cells[c.id]), 0),
     }));
 
   const activeFilters = (filterResult !== "all" ? 1 : 0) + (filterDir !== "all" ? 1 : 0);
@@ -1868,16 +1910,32 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
   const [perPage, setPerPage] = useState(25);
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(() => new Set());
 
+  const lastCommitted = useRef<string>(String(node.attrs.data || ""));
   const commit = (next: TableData) => {
+    const json = JSON.stringify(next);
+    lastCommitted.current = json;
     setData(next);
-    updateAttributes({ data: JSON.stringify(next) });
+    updateAttributes({ data: json });
     if (next.addLabel === "trade" && next.id) setTableTrades(next.id, mapTrades(next));
   };
+  // undo/redo (or any external attr change) must re-sync the cached grid —
+  // otherwise the visible table silently diverges from the persisted document
+  useEffect(() => {
+    const raw = String(node.attrs.data || "");
+    if (raw && raw !== lastCommitted.current) {
+      lastCommitted.current = raw;
+      const d = parseData(raw);
+      setData(d);
+      if (d.addLabel === "trade" && d.id) setTableTrades(d.id, mapTrades(d));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.attrs.data]);
   // publish this trade table's rows to the store on mount, so "Link to trade" sees them
   useEffect(() => {
     // template HTML arrives without an id (tradeTableHTML strips it) and
-    // parseData mints one — commit it to the node NOW, or every remount mints
-    // a new key and re-publishes the same rows as duplicate phantom trades
+    // parseData mints one; a DUPLICATED table (copy/paste, block-menu
+    // Duplicate, custom templates) arrives with a CLONED id — either way,
+    // publishing under a shared key would make two tables clobber each other.
     let hadId = false;
     try {
       const raw = node.attrs.data as unknown;
@@ -1888,8 +1946,26 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
     } catch {
       /* unparseable → treat as missing */
     }
-    if (!hadId) updateAttributes({ data: JSON.stringify(data) });
-    if (data.addLabel === "trade" && data.id) setTableTrades(data.id, mapTrades(data));
+    const me = Symbol("tradeTable");
+    const collision = !!data.id && liveTableIds.has(data.id);
+    let current = data;
+    if (!hadId || collision) {
+      current = {
+        ...data,
+        id: uid(),
+        // a cloned table shares ROW ids too — remint so Trade.id stays unique
+        rows: collision ? data.rows.map((r) => ({ ...r, id: uid() })) : data.rows,
+      };
+      const json = JSON.stringify(current);
+      lastCommitted.current = json;
+      setData(current);
+      updateAttributes({ data: json });
+    }
+    if (current.id) liveTableIds.set(current.id, me);
+    if (current.addLabel === "trade" && current.id) setTableTrades(current.id, mapTrades(current));
+    return () => {
+      if (current.id && liveTableIds.get(current.id) === me) liveTableIds.delete(current.id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const setCell = (rowId: string, colId: string, val: Cell) =>
@@ -2008,6 +2084,11 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
     : data.rows;
   const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(page, pageCount);
+  // write the clamp back — a stale out-of-range page number would resurface
+  // (and jump the view) the next time the row count grows
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
   const pageRows = filtered.slice((safePage - 1) * perPage, safePage * perPage);
   const firstShown = filtered.length === 0 ? 0 : (safePage - 1) * perPage + 1;
   const lastShown = (safePage - 1) * perPage + pageRows.length;
@@ -2253,7 +2334,7 @@ function TradeTableView({ node, updateAttributes }: NodeViewProps) {
                         {c.sum ? (
                           <span className="tt-sum">
                             <span style={{ color: "var(--text-faint)" }}>Σ</span>{" "}
-                            {data.rows.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
+                            {filtered.reduce((s, r) => s + num(r.cells[c.id]), 0).toFixed(2)}
                           </span>
                         ) : null}
                       </td>

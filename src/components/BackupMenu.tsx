@@ -16,6 +16,7 @@ import {
   type MdEntry,
   type RestoreMode,
 } from "../backup";
+import { decodeImages } from "../imageStore";
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -79,12 +80,15 @@ export function BackupMenu({
     const file = pending.file;
     setPending(null);
     void run(mode === "replace" ? "Restoring…" : "Merging…", async () => {
+      // phase 1 — decode, touching nothing: a corrupt image shows the error
+      // dialog and the journal is untouched (no reload)
+      const blobs = await decodeImages(file.images);
+      // phase 2 — write: after this point ALWAYS rehydrate from whatever
+      // storage now holds, or the old journal in memory would autosave over
+      // the restored one
       try {
-        await restoreBackup(file, mode);
+        await restoreBackup(file, mode, blobs);
       } finally {
-        // ALWAYS rehydrate from whatever storage now holds — a failure after
-        // the write must never leave the old journal in memory to autosave
-        // over the restored one
         window.location.reload();
       }
     });

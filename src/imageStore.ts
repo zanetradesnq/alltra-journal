@@ -102,11 +102,12 @@ export async function resolveImage(src: string): Promise<string> {
       req.onsuccess = () => resolve(req.result as Blob | undefined);
       req.onerror = () => reject(req.error ?? new Error("indexedDB read failed"));
     });
-    const url = blob ? URL.createObjectURL(blob) : "";
+    // cache a hit; a MISS is not cached — an import may add the blob later
+    if (!blob) return "";
+    const url = URL.createObjectURL(blob);
     urlCache.set(id, url);
-    pending.delete(id);
     return url;
-  })();
+  })().finally(() => pending.delete(id)); // a rejection must not poison retries
   pending.set(id, p);
   return p;
 }
@@ -127,9 +128,14 @@ export function useImageSrc(src: string | null | undefined): string | undefined 
       setResolved(src);
       return;
     }
-    resolveImage(src).then((u) => {
-      if (alive) setResolved(u || undefined);
-    });
+    resolveImage(src).then(
+      (u) => {
+        if (alive) setResolved(u || undefined);
+      },
+      () => {
+        if (alive) setResolved(undefined); // a failed read isn't an unhandled rejection
+      },
+    );
     return () => {
       alive = false;
     };

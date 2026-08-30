@@ -123,16 +123,17 @@ export function TradeDetailsPanel({
     dialogRef.current?.focus();
   }, []);
 
-  // Escape: the lightbox swallows its own; otherwise close the drawer
+  // Escape: bubble phase, and respect keys something ABOVE us (Spotlight)
+  // already consumed — a capture listener would close the drawer under it
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
       if (lightbox) setLightbox(false);
       else close();
     };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightbox]);
 
@@ -206,6 +207,9 @@ export function TradeDetailsPanel({
   }
   const groupKeys = [...ORDER.filter((g) => groups.has(g)), ...[...groups.keys()].filter((g) => !ORDER.includes(g))];
   const hasMetricsWidgets = rating > 0 || rmul !== "" || mfe !== "" || mae !== "";
+  // the Metrics columns are ALL widget-rendered, so the group never appears in
+  // the scalar map — append a synthetic section or the widgets never render
+  if (hasMetricsWidgets && !groupKeys.includes("Metrics")) groupKeys.push("Metrics");
 
   const fav = Math.abs(numOf(mfe));
   const adv = Math.abs(numOf(mae));
@@ -363,7 +367,7 @@ export function TradeDetailsPanel({
                   {groupKeys.map((g) => (
                     <div key={g} className="tdp-stats__group">
                       <h3 className="tdp-stats__grouplabel">{g}</h3>
-                      {groups.get(g)!.map((r) => (
+                      {(groups.get(g) ?? []).map((r) => (
                         <StatRow key={r.label} label={r.label} value={r.value} tone={r.tone} />
                       ))}
                       {g === "Metrics" && hasMetricsWidgets && (

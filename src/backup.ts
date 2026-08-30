@@ -126,9 +126,14 @@ function mergeById<T extends { id?: string }>(current: T[], incoming: T[]): T[] 
  * Apply a backup. Resolves when storage is written — the caller reloads the
  * page so every store rehydrates from scratch.
  */
-export async function restoreBackup(file: BackupFile, mode: RestoreMode): Promise<void> {
+export async function restoreBackup(
+  file: BackupFile,
+  mode: RestoreMode,
+  preDecoded?: Awaited<ReturnType<typeof decodeImages>>,
+): Promise<void> {
   // decode every image FIRST — a corrupt blob must fail before storage is touched
-  const blobs = await decodeImages(file.images);
+  // (callers may pre-decode so a failure can be surfaced WITHOUT a reload)
+  const blobs = preDecoded ?? (await decodeImages(file.images));
   if (mode === "replace") {
     Object.keys(readStorage()).forEach((k) => localStorage.removeItem(k));
     await clearImages();

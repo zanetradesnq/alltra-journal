@@ -197,7 +197,7 @@ export function Spotlight({
 
   return (
     <div
-      className="fixed inset-0 z-[8500] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
+      className="fixed inset-0 z-[10000] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
       onMouseDown={onClose}
     >
       <div

@@ -3,7 +3,6 @@ import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from
 import { createPortal } from "react-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/react";
-import TurndownService from "turndown";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExt from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
@@ -32,7 +31,8 @@ import { TradeTable, tradeTableHTML } from "./extensions/tradeTable";
 import { JournalStats, journalStatsHTML } from "./extensions/journalStats";
 import { MOCK_TRADES } from "./trades";
 import { allTrades, pruneTrades } from "./tradeStore";
-import { imagePasteProps, pruneImages, collectImageIds } from "./imageStore";
+import { imagePasteProps, pruneImages, collectImageIds, resolveImage, IDB_PREFIX } from "./imageStore";
+import { htmlToMarkdown } from "./backup";
 import { DayHeader, DAY_HEADER_HTML } from "./extensions/dayHeader";
 import { EmotionsWidget } from "./components/EmotionsWidget";
 import { BackupMenu } from "./components/BackupMenu";
@@ -227,7 +227,13 @@ const TRADING_JOURNAL_TEMPLATE: JournalTemplate = {
     tradeTableHTML("mistakes"),
 };
 
-type TrashItem = { html: string; title: string; date: string };
+type TrashItem = {
+  html: string;
+  title: string;
+  date: string;
+  /** the byline (chrome) title, restored with the entry (older items lack it) */
+  entryTitle?: string;
+};
 
 type Saved = {
   pages: string[];
@@ -342,6 +348,29 @@ function findTradeRow(tradeId: string, pages: string[], extra: string[] = []): T
   return null;
 }
 
+// the print window's document shell (body = the entry HTML, images pre-resolved)
+const PRINT_SHELL = (title: string, body: string): string =>
+  `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
+  `<style>` +
+  `body{font-family:Inter,system-ui,sans-serif;color:#1f2024;max-width:680px;margin:48px auto;padding:0 24px;line-height:1.7}` +
+  `h1{font-size:1.9rem;letter-spacing:-0.02em;margin:0 0 1rem}` +
+  `h2{font-size:1.15rem;margin:1.6rem 0 .4rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}` +
+  `blockquote{border-left:3px solid #ddd;padding-left:1rem;color:#555;margin:.6rem 0}` +
+  `pre{background:#f5f5f5;padding:.8rem 1rem;border-radius:8px;overflow:auto}` +
+  `code{background:#f0f0f0;padding:.1em .35em;border-radius:4px;font-size:.9em}` +
+  `pre code{background:none;padding:0}` +
+  `ul[data-type=taskList]{list-style:none;padding-left:.2rem}` +
+  `ul[data-type=taskList] li{display:flex;gap:.5rem;align-items:flex-start}` +
+  `table{border-collapse:collapse;width:100%;margin:.8rem 0;font-size:.95em}` +
+  `th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;vertical-align:top}` +
+  `th{background:#f5f5f5;font-weight:600}` +
+  `div[data-type=callout]{display:flex;gap:.6rem;padding:.7rem .9rem;border-radius:8px;background:#f4f4f5;border:1px solid #e6e6e6;margin:.6rem 0}` +
+  `span[data-type=tag]{display:inline-block;padding:.05em .5em;border-radius:999px;background:#eee;font-size:.85em;margin:0 .1em}` +
+  `div[data-type=toggle][data-open=false] > *:not(:first-child){display:none}` +
+  `span[data-type=icon]{display:inline}` +
+  `img{max-width:100%}` +
+  `</style></head><body>${body}</body></html>`;
+
 // every trade-table id present in the given HTML payloads (for store pruning)
 function collectTradeTableIds(htmls: string[]): Set<string> {
   const ids = new Set<string>();
@@ -376,18 +405,6 @@ function fmtDateLabel(dateStr: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// write a new title into a page's HTML by replacing (or inserting) its <h1>
-function setEntryTitle(html: string, name: string): string {
-  const el = document.createElement("div");
-  el.innerHTML = html;
-  let h1 = el.querySelector("h1");
-  if (!h1) {
-    h1 = document.createElement("h1");
-    el.insertBefore(h1, el.firstChild);
-  }
-  h1.textContent = name;
-  return el.innerHTML;
-}
 
 // the byline stamp — "3:19 PM" for a save today, "Jun 18, 3:19 PM" any other day
 function updatedStamp(ms: number): string {
@@ -1908,9 +1925,16 @@ export default function App() {
   // discarded). Template drafts pass "" — a template canvas starts empty.
   const startProvisional = (dateKey: string, initial: string = DAY_HEADER_HTML + "<p></p>") => {
     if (editor) pagesRef.current[page] = editor.getHTML();
+    const prevPage = pageRef.current;
     discardProvisional(); // drop any existing empty provisional first
     pagesRef.current.push(initial);
     const idx = pagesRef.current.length - 1;
+    // discarding an empty provisional at the SAME index makes setPage a no-op —
+    // sync the editor to the new initial content explicitly
+    if (idx === prevPage && editor) {
+      editor.commands.setContent(initial, false);
+      setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
+    }
     setTitles((t) => [...t, "Untitled"]);
     setEntryTitles((t) => [...t, ""]);
     setDates((d) => [...d, dateKey]);
@@ -1949,8 +1973,9 @@ export default function App() {
     const html = pagesRef.current[i] ?? "";
     const item: TrashItem = {
       html,
-      title: titles[i] || "Untitled",
+      title: entryTitles[i]?.trim() || titles[i] || "Untitled",
       date: dates[i] ?? DEFAULT_DATE,
+      entryTitle: entryTitles[i] ?? "",
     };
     pagesRef.current.splice(i, 1);
     reindexEntrySetsOnDelete(i); // keep favorites/logged pinned to the right entries
@@ -1973,20 +1998,27 @@ export default function App() {
       i < page ? page - 1 : Math.min(page, pagesRef.current.length - 1);
     setDir("prev");
     if (target === page) {
-      editor?.commands.setContent(pagesRef.current[target] ?? "", false);
+      if (editor) {
+        editor.commands.setContent(pagesRef.current[target] ?? "", false);
+        // the flip effect never runs on a same-index swap — sync cover mode too
+        setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
+      }
     } else {
       setPage(target);
     }
     schedulePersist();
   };
 
+  // rename = the byline (chrome) title — every display point prefers it, so
+  // writing an <h1> into the body (the old mechanism) silently did nothing
+  // for titled entries and mutated content the user never asked to change
   const renameEntry = (i: number, name: string) => {
-    const clean = name.trim() || "Untitled";
-    pagesRef.current[i] = setEntryTitle(pagesRef.current[i] ?? "", clean);
-    setTitles(pagesRef.current.map(deriveTitle));
-    if (i === page) {
-      editor?.commands.setContent(pagesRef.current[i] ?? "", false);
-    }
+    const clean = (name.trim() || "Untitled").slice(0, TITLE_MAX);
+    setEntryTitles((t) => {
+      const n = [...t];
+      n[i] = clean;
+      return n;
+    });
     schedulePersist();
   };
 
@@ -1994,16 +2026,28 @@ export default function App() {
     const item = trash[ti];
     if (!item) return;
     if (editor) pagesRef.current[page] = editor.getHTML();
+    const prevLen = pagesRef.current.length;
     // commit/drop any open provisional first so it stays the LAST entry (the
     // invariant savePersist's slice relies on) after we append the restored one
     discardProvisional();
     pagesRef.current.push(item.html);
     setDates((d) => [...d, item.date]);
     setTitles(pagesRef.current.map(deriveTitle));
-    setEntryTitles((t) => [...t, ""]);
+    setEntryTitles((t) => [...t, item.entryTitle ?? ""]);
     setTrash((tr) => tr.filter((_, idx) => idx !== ti));
     setDir("next");
-    setPage(pagesRef.current.length - 1);
+    const target = pagesRef.current.length - 1;
+    if (target === page && pagesRef.current.length === prevLen) {
+      // an empty provisional was discarded and the restored entry reused its
+      // index — setPage is a no-op, so sync the editor here or the stale
+      // empty page would overwrite the restored content on the next keystroke
+      if (editor) {
+        editor.commands.setContent(item.html, false);
+        setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
+      }
+    } else {
+      setPage(target);
+    }
     schedulePersist();
   };
 
@@ -2111,7 +2155,8 @@ export default function App() {
       if (!dateStr) return;
       const text = htmlToText(html).trim();
       const wc = text ? text.split(/\s+/).length : 0;
-      const hasJournal = text.length > 0;
+      // atoms count: an image-only / table-only / filled-header entry IS a journal day
+      const hasJournal = text.length > 0 || hasMeaningfulContent(html);
       const prev = map.get(dateStr);
       if (prev) {
         map.set(dateStr, {
@@ -2151,67 +2196,8 @@ export default function App() {
   };
 
   // ── export / share ──────────────────────────────────────────────────────
-  const turndown = useRef<TurndownService | null>(null);
-  if (!turndown.current) {
-    const td = new TurndownService({
-      headingStyle: "atx",
-      codeBlockStyle: "fenced",
-      bulletListMarker: "-",
-    });
-    td.addRule("taskItems", {
-      filter: (node) =>
-        node.nodeName === "LI" && node.getAttribute("data-type") === "taskItem",
-      replacement: (_c, node) => {
-        const checked =
-          (node as HTMLElement).getAttribute("data-checked") === "true";
-        const text = (node.textContent || "").trim();
-        return `- [${checked ? "x" : " "}] ${text}\n`;
-      },
-    });
-    // Content tables → GFM markdown tables (Turndown drops <table> by default).
-    // The first row is treated as the header; cell text is flattened + escaped.
-    td.addRule("contentTable", {
-      filter: "table",
-      replacement: (_c, node) => {
-        const el = node as HTMLElement;
-        const rows = Array.from(el.querySelectorAll("tr"));
-        if (!rows.length) return "";
-        const cellText = (cell: Element) =>
-          (cell.textContent || "").trim().replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
-        const toLine = (cells: Element[]) =>
-          "| " + cells.map(cellText).join(" | ") + " |";
-        // vertical (label–value) tables have a <th> leading EVERY row → emit a
-        // neutral Field/Value header instead of promoting the first data pair
-        const isVertical =
-          rows.length > 0 &&
-          rows.every((r) => {
-            const cs = Array.from(r.children);
-            return (
-              cs.length >= 2 &&
-              cs[0].tagName === "TH" &&
-              cs.slice(1).some((x) => x.tagName === "TD")
-            );
-          });
-        let lines: string[];
-        if (isVertical) {
-          lines = [
-            "| Field | Value |",
-            "| --- | --- |",
-            ...rows.map((r) => toLine(Array.from(r.children))),
-          ];
-        } else {
-          const header = Array.from(rows[0].children);
-          lines = [
-            toLine(header),
-            "| " + header.map(() => "---").join(" | ") + " |",
-            ...rows.slice(1).map((r) => toLine(Array.from(r.children))),
-          ];
-        }
-        return "\n\n" + lines.join("\n") + "\n\n";
-      },
-    });
-    turndown.current = td;
-  }
+  // Markdown conversion lives in backup.ts (htmlToMarkdown) — it understands
+  // every journal node (trade tables, day headers, idb:// images, tags…)
 
   const currentHtml = () => {
     if (editor) pagesRef.current[page] = editor.getHTML();
@@ -2222,10 +2208,10 @@ export default function App() {
     "entry";
 
   const copyMarkdown = () =>
-    navigator.clipboard?.writeText(turndown.current!.turndown(currentHtml()));
+    navigator.clipboard?.writeText(htmlToMarkdown(currentHtml()));
   const copyText = () => navigator.clipboard?.writeText(htmlToText(currentHtml()));
   const downloadMarkdown = () => {
-    const blob = new Blob([turndown.current!.turndown(currentHtml())], {
+    const blob = new Blob([htmlToMarkdown(currentHtml())], {
       type: "text/markdown;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -2236,34 +2222,42 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
   const printEntry = () => {
-    const w = window.open("", "_blank", "width=820,height=1040");
-    if (!w) return;
-    const title = titles[page] || "Entry";
-    w.document.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
-        `<style>` +
-        `body{font-family:Inter,system-ui,sans-serif;color:#1f2024;max-width:680px;margin:48px auto;padding:0 24px;line-height:1.7}` +
-        `h1{font-size:1.9rem;letter-spacing:-0.02em;margin:0 0 1rem}` +
-        `h2{font-size:1.15rem;margin:1.6rem 0 .4rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}` +
-        `blockquote{border-left:3px solid #ddd;padding-left:1rem;color:#555;margin:.6rem 0}` +
-        `pre{background:#f5f5f5;padding:.8rem 1rem;border-radius:8px;overflow:auto}` +
-        `code{background:#f0f0f0;padding:.1em .35em;border-radius:4px;font-size:.9em}` +
-        `pre code{background:none;padding:0}` +
-        `ul[data-type=taskList]{list-style:none;padding-left:.2rem}` +
-        `ul[data-type=taskList] li{display:flex;gap:.5rem;align-items:flex-start}` +
-        `table{border-collapse:collapse;width:100%;margin:.8rem 0;font-size:.95em}` +
-        `th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;vertical-align:top}` +
-        `th{background:#f5f5f5;font-weight:600}` +
-        `div[data-type=callout]{display:flex;gap:.6rem;padding:.7rem .9rem;border-radius:8px;background:#f4f4f5;border:1px solid #e6e6e6;margin:.6rem 0}` +
-        `span[data-type=tag]{display:inline-block;padding:.05em .5em;border-radius:999px;background:#eee;font-size:.85em;margin:0 .1em}` +
-        `div[data-type=toggle][data-open=false] > *:not(:first-child){display:none}` +
-        `span[data-type=icon]{display:inline}` +
-        `img{max-width:100%}` +
-        `</style></head><body>${currentHtml()}</body></html>`
-    );
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+    void (async () => {
+      // resolve idb:// screenshots to blob URLs BEFORE writing — the print
+      // window has no script to read IndexedDB, so raw refs render broken
+      const holder = document.createElement("div");
+      holder.innerHTML = currentHtml();
+      const imgs = Array.from(holder.querySelectorAll<HTMLImageElement>("img"));
+      await Promise.all(
+        imgs.map(async (img) => {
+          const src = img.getAttribute("src") ?? "";
+          if (src.startsWith(IDB_PREFIX)) {
+            const url = await resolveImage(src).catch(() => "");
+            if (url) img.setAttribute("src", url);
+            else img.remove();
+          }
+        })
+      );
+      const w = window.open("", "_blank", "width=820,height=1040");
+      if (!w) return;
+      const title = titles[page] || "Entry";
+      w.document.write(PRINT_SHELL(title, holder.innerHTML));
+      w.document.close();
+      w.focus();
+      // wait for the images to actually load in the child before printing
+      const childImgs = Array.from(w.document.images);
+      await Promise.all(
+        childImgs.map(
+          (im) =>
+            new Promise<void>((res) => {
+              if (im.complete) return res();
+              im.onload = () => res();
+              im.onerror = () => res();
+            })
+        )
+      );
+      w.print();
+    })();
   };
 
   // ⌘K / Ctrl+K opens spotlight search (so does the trade grid's ⌘K chip, via
@@ -2293,7 +2287,9 @@ export default function App() {
       return;
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFocusMode(false);
+      // a popup that consumed Escape (slash menu, block/context menu, banner
+      // picker — all preventDefault/stopPropagation) must not ALSO exit focus
+      if (e.key === "Escape" && !e.defaultPrevented) setFocusMode(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -2805,7 +2801,11 @@ export default function App() {
               text: htmlToText(pagesRef.current[i] ?? ""),
               tags: extractTags(pagesRef.current[i] ?? ""),
             }))
-            .filter((e) => e.index !== provisionalIndex)}
+            .filter(
+              (e) =>
+                e.index !== provisionalIndex &&
+                hasMeaningfulContent(pagesRef.current[e.index] ?? "")
+            )}
           notes={noteSummaries()}
           commands={view === "editor" && editor ? SLASH_COMMANDS : null}
           initialQuery={spotlightQuery}

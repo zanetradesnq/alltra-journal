@@ -25,6 +25,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
+import { storeImage } from "../imageStore";
 import { ChevronRight } from "lucide-react";
 import { placePopover, placeSide } from "../lib/popover";
 import { ACCENT_PALETTE, washOf } from "../editorColors";
@@ -412,7 +414,11 @@ export function EditorContextMenu({ editor }: { editor: Editor | null }) {
       if (!inMenu) close();
     };
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation(); // don't ALSO exit focus mode
+        close();
+      }
     };
     document.addEventListener("mousedown", onDown, true);
     document.addEventListener("keydown", onKey);
@@ -448,21 +454,33 @@ export function EditorContextMenu({ editor }: { editor: Editor | null }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (file === undefined || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") ed.chain().focus().setImage({ src: reader.result }).run();
-    };
-    reader.readAsDataURL(file);
+    // IndexedDB, never base64-in-document (the localStorage-quota killer)
+    void storeImage(file).then((src) => ed.chain().focus().setImage({ src }).run());
   };
 
+  // a duplicated day header / banner would break their one-per-entry invariant
+  const UNIQUE_BLOCKS = new Set(["dayHeader", "banner"]);
   const duplicateBlock = (): void => {
-    const { $from } = ed.state.selection;
+    const sel = ed.state.selection;
+    // a selected atom block (image, table, stats…) is a NodeSelection: depth 0
+    if (sel instanceof NodeSelection && sel.node.isBlock) {
+      if (UNIQUE_BLOCKS.has(sel.node.type.name)) return;
+      ed.chain().focus().insertContentAt(sel.to, sel.node.toJSON()).run();
+      return;
+    }
+    const { $from } = sel;
     if ($from.depth < 1) return;
-    const json = $from.node(1).toJSON();
-    ed.chain().focus().insertContentAt($from.after(1), json).run();
+    const node = $from.node(1);
+    if (UNIQUE_BLOCKS.has(node.type.name)) return;
+    ed.chain().focus().insertContentAt($from.after(1), node.toJSON()).run();
   };
   const deleteBlock = (): void => {
-    const { $from } = ed.state.selection;
+    const sel = ed.state.selection;
+    if (sel instanceof NodeSelection) {
+      ed.chain().focus().deleteSelection().run();
+      return;
+    }
+    const { $from } = sel;
     if ($from.depth < 1) return;
     if (ed.state.doc.childCount <= 1) ed.chain().focus().clearContent().run();
     else ed.chain().focus().deleteRange({ from: $from.before(1), to: $from.after(1) }).run();

@@ -158,6 +158,11 @@ export function NotesPage({
   const [composer, setComposer] = useState<Note | null>(null);
   useEffect(() => {
     if (!openNoteId) return;
+    // never clobber an open composer's unsaved draft with a deep-link
+    if (composer) {
+      onOpened?.();
+      return;
+    }
     const n = notes.find((x) => x.id === openNoteId);
     if (n) setComposer(n);
     onOpened?.();

@@ -127,6 +127,10 @@ export const SlashCommand = Extension.create<{ favorites: SlashFavorites }>({
             },
             onKeyDown: (props) => {
               if (props.event.key === "Escape") {
+                // consumed here — the window-level handler must not ALSO exit
+                // full-page focus mode
+                props.event.preventDefault();
+                props.event.stopPropagation();
                 escaped = true;
                 if (popup) popup.style.display = "none";
                 return true;

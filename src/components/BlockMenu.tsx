@@ -91,7 +91,11 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation(); // don't ALSO exit focus mode
+        onClose();
+      }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -176,7 +180,9 @@ export function BlockMenu({ editor, pos, anchor, onClose, onAskAI }: PanelProps)
   };
   const duplicateBlock = () => {
     const n = editor.state.doc.nodeAt(pos);
-    if (n)
+    // day headers and banners are one-per-entry — duplicating them breaks
+    // the invariants the rest of the app relies on
+    if (n && n.type.name !== "dayHeader" && n.type.name !== "banner")
       editor
         .chain()
         .focus()

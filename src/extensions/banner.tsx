@@ -58,7 +58,11 @@ function BannerView({ node, updateAttributes, deleteNode }: NodeViewProps) {
         setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation(); // don't ALSO exit focus mode
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);

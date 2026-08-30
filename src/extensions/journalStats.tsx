@@ -68,7 +68,9 @@ function byMonth(trades: Trade[]): MonthRow[] {
   for (const t of trades) {
     // dates may be a range ("10/07/2023 2:15 AM → 2:30 AM") — parse the first part
     const raw = String(t.date).split("→")[0].trim();
-    const d = new Date(raw);
+    // bare YYYY-MM-DD parses as UTC midnight — west of UTC that bins the 1st
+    // of a month into the PREVIOUS month; force local time
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
     const key = Number.isNaN(d.getTime())
       ? "—"
       : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
