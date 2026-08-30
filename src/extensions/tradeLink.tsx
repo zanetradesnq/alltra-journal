@@ -40,14 +40,21 @@ const POS = "var(--success)";
 const NEG = "var(--danger)";
 const money = (n: number) => `${n >= 0 ? "+" : "−"}$${Math.abs(n).toFixed(2)}`;
 
+/* trade dates arrive as YYYY-MM-DD from the store contract, but v3 trade
+   tables publish display strings ("Aug 24, 2026 09:46") — parse both. */
+function parseTradeDate(dateStr: string): Date {
+  const iso = new Date(`${dateStr}T00:00:00`);
+  return Number.isNaN(iso.getTime()) ? new Date(dateStr) : iso;
+}
+
 function dateLabel(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
+  const d = parseTradeDate(dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function dayName(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00`);
+  const d = parseTradeDate(dateStr);
   return Number.isNaN(d.getTime())
     ? ""
     : d.toLocaleDateString("en-US", { weekday: "long" });

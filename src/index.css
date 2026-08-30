@@ -2413,3 +2413,1084 @@ body:has(.drag-ghost) .block-dragging {
   text-align: right;
 }
 
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The v3 Trades-page grid — ported from the Alltra desktop's
+   TradesPagePreview.css (@ design/alltra-v2). Token bridge below maps the
+   --ds-* system onto the journal's own theme tokens; the rules underneath are
+   the source mechanics near-verbatim. NEVER scope any of this under .journal
+   (the fullscreen overlay portals outside it).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tpp-container,
+.tpp-panel,
+.tpp-menu {
+  /* token bridge — ds → journal */
+  --ds-surface-2: var(--surface-2);
+  --ds-surface-3: var(--bg-card);
+  --ds-text-primary: var(--text-primary);
+  --ds-text-secondary: var(--text-muted);
+  --ds-text-tertiary: var(--text-faint);
+  --ds-border-hairline: var(--border);
+  --ds-border-strong: var(--border-strong);
+  --ds-fill-1: var(--hover-overlay);
+  --ds-fill-2: var(--hover-overlay-medium);
+  --ds-fill-3: var(--hover-overlay-strong);
+  --ds-profit: #2ebd85;
+  --ds-profit-surface: rgba(46, 189, 133, 0.14);
+  --ds-loss: #f04e5e;
+  --ds-loss-surface: rgba(240, 78, 94, 0.14);
+  --ds-info: #38bdf8;
+  --ds-info-surface: rgba(56, 189, 248, 0.14);
+  --ds-accent: var(--alltra-brand);
+  --ds-duration-fast: 150ms;
+  --ds-duration-base: 200ms;
+  --ds-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+/* ── panel shell — surface-2 card, hairline ring, 12px corners ────────────── */
+.tpp-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ds-surface-2);
+  border: 1px solid var(--ds-border-hairline);
+  border-radius: 12px;
+  overflow: hidden;
+}
+/* fullscreen: fill the overlay body, sticky tiers pin inside the tablewrap */
+.tt-overlay-body .tpp-container {
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── toolbar — 64px band (the journal's compact take on the 80px page band) ── */
+.tpp-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 0 20px;
+  box-shadow: inset 0 -1px 0 0 var(--ds-border-hairline);
+}
+.tpp-toolbar__search {
+  flex: 0 1 360px;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--ds-surface-3);
+  border: 1.5px solid var(--ds-border-strong);
+  border-radius: 17px;
+  color: var(--ds-text-tertiary);
+  transition: border-color var(--ds-duration-fast) var(--ds-ease-standard), box-shadow var(--ds-duration-fast) var(--ds-ease-standard);
+}
+.tpp-toolbar__search:focus-within {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 4px rgba(var(--alltra-brand-rgb), 0.2);
+}
+.tpp-search__ico {
+  flex: none;
+}
+.tpp-toolbar__search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ds-text-primary);
+}
+.tpp-toolbar__search input::placeholder {
+  color: var(--ds-text-tertiary);
+}
+.tpp-kbd {
+  flex: none;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tpp-toolbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tpp-datefield {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  min-width: 170px;
+  padding: 0 12px;
+  border: 1.5px solid var(--ds-border-strong);
+  background: var(--ds-surface-3);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--ds-text-tertiary);
+  white-space: nowrap;
+}
+.tpp-datefield:disabled {
+  cursor: default;
+}
+.tpp-viewtoggle {
+  position: relative;
+  display: inline-flex;
+  background: var(--ds-fill-1);
+  border-radius: 12px;
+  isolation: isolate;
+}
+.tpp-viewtoggle__ind {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 50%;
+  background: var(--ds-fill-3);
+  border-radius: 12px;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: -1;
+}
+.tpp-viewtoggle button {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--ds-text-tertiary);
+  cursor: pointer;
+  transition: color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+.tpp-viewtoggle button[data-on] {
+  color: var(--ds-text-primary);
+}
+.tpp-filterwrap {
+  position: relative;
+  display: inline-flex;
+}
+.tpp-filterbtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: var(--ds-fill-1);
+  color: var(--ds-text-primary);
+  cursor: pointer;
+  transition: background var(--ds-duration-fast) var(--ds-ease-standard), transform 90ms var(--ds-ease-decelerate);
+}
+.tpp-filterbtn:hover {
+  background: var(--ds-fill-3);
+}
+.tpp-filterbtn:active {
+  transform: scale(0.96);
+}
+.tpp-filterbtn__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--ds-accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.tpp-bulkdel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--ds-loss-surface);
+  color: var(--ds-loss);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tpp-addbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--ds-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter var(--ds-duration-fast) var(--ds-ease-standard), transform 90ms var(--ds-ease-decelerate);
+}
+.tpp-addbtn:hover {
+  filter: brightness(0.86);
+}
+.tpp-addbtn:active {
+  transform: scale(0.96);
+}
+
+/* ── table shell + sticky-tier hairline overlays ──────────────────────────── */
+.tpp-tableshell {
+  --tpp-groups-h: 40px;
+  --tpp-cols-h: 52px;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tpp-tablewrap {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  max-height: min(600px, 64vh);
+  scrollbar-width: thin;
+  scrollbar-color: var(--hover-overlay-strong) transparent;
+}
+.tt-overlay-body .tpp-tablewrap {
+  max-height: none;
+}
+.tpp-tablewrap::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.tpp-tablewrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tpp-tablewrap::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.18);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.tpp-tablewrap::-webkit-scrollbar-track-piece:vertical {
+  margin-top: calc(var(--tpp-groups-h) + var(--tpp-cols-h));
+  margin-bottom: 20px;
+}
+.tpp-headrule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ds-border-hairline);
+  pointer-events: none;
+  z-index: 4;
+}
+.tpp-headrule--groups {
+  top: var(--tpp-groups-h);
+}
+.tpp-headrule--cols {
+  top: calc(var(--tpp-groups-h) + var(--tpp-cols-h));
+}
+
+/* ── the grid (subgrid rows, interpolating collapse tracks) ───────────────── */
+.tpp-grid {
+  display: grid;
+  min-height: 100%;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+.tpp-grid[data-collapse-motion] {
+  transition:
+    grid-template-columns var(--ds-duration-base) var(--ds-ease-decelerate),
+    min-width var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-rowgroup {
+  display: contents;
+}
+.tpp-gr {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.tpp-gr--groups,
+.tpp-gr--cols {
+  position: sticky;
+  background: var(--ds-surface-2);
+}
+.tpp-gr--groups {
+  top: 0;
+  z-index: 3;
+  min-height: 40px;
+}
+.tpp-gr--cols {
+  top: var(--tpp-groups-h);
+  z-index: 2;
+  min-height: 52px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+}
+.tpp-sortbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.tpp-sortbtn:hover,
+.tpp-sortbtn[data-sorted] {
+  color: var(--ds-text-primary);
+}
+.tpp-sortbtn:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+.tpp-sortbtn__icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  opacity: 0.55;
+  transition: opacity var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-sortbtn:hover .tpp-sortbtn__icon,
+.tpp-sortbtn:focus-visible .tpp-sortbtn__icon,
+.tpp-sortbtn[data-sorted] .tpp-sortbtn__icon {
+  opacity: 1;
+}
+
+/* ── body rows — hairline-divided, rail-hover wash, selection reuse ───────── */
+.tpp-gr--body {
+  border-bottom: 1px solid var(--ds-border-hairline);
+  transition: background var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-gr--body:hover:not([data-selected]) {
+  background: var(--ds-fill-1);
+  transition: none;
+}
+.tpp-gr--body[data-selected] {
+  background: var(--ds-fill-1);
+}
+.tpp-gr--body .tpp-gcell {
+  min-height: 44px;
+}
+.tpp-gcell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--ds-border-hairline);
+  transition: border-right-width var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-gcell:last-child {
+  border-right: none;
+}
+.tpp-gcell[data-numeric] {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.tpp-datacell {
+  overflow: hidden;
+}
+.tpp-cellslide {
+  display: block;
+  width: max-content;
+  white-space: nowrap;
+  padding: 12px 16px;
+  transition: transform var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-gr--cols .tpp-cellslide {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+[data-colcollapsed] .tpp-cellslide {
+  transform: translateX(-100%);
+}
+.tpp-gcell[data-colcollapsed],
+.tpp-fillcell[data-colcollapsed] {
+  border-right-width: 0;
+  /* collapsed cells must lose focusability too (stars/selects/attach buttons
+     inside an aria-hidden cell are a focus trap) — visibility drops after the
+     200ms slide finishes; reveal on expand is instant (the base rule carries
+     no visibility transition) */
+  visibility: hidden;
+  transition:
+    border-right-width var(--ds-duration-base) var(--ds-ease-decelerate),
+    visibility 0s var(--ds-duration-base);
+}
+.tpp-fillrow {
+  pointer-events: none;
+}
+.tpp-fillcell {
+  min-width: 0;
+  border-right: 1px solid var(--ds-border-hairline);
+  transition: border-right-width var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-fillcell:last-child {
+  border-right: none;
+}
+.tpp-col-check,
+.tpp-col-actions {
+  justify-content: center;
+}
+.tpp-emptycols {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+  font-weight: 500;
+}
+
+/* ── tier-1 group cells ───────────────────────────────────────────────────── */
+.tpp-group {
+  overflow: hidden;
+  padding: 8px 16px;
+}
+.tpp-group__toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 8px;
+  color: var(--ds-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  transition: color var(--ds-duration-fast) var(--ds-ease-standard), background-color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+.tpp-group__toggle:hover {
+  color: var(--ds-text-secondary);
+  background: var(--ds-fill-1);
+}
+.tpp-group__label {
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tpp-group__static {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ds-text-tertiary);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tpp-group__chevron {
+  flex: 0 0 auto;
+  transition: transform var(--ds-duration-fast) var(--ds-ease-standard);
+}
+.tpp-group[data-collapsed] .tpp-group__chevron {
+  transform: rotate(180deg);
+}
+
+/* ── cell content anatomy ─────────────────────────────────────────────────── */
+.tpp-symcell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tpp-logo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: var(--ds-fill-2);
+  box-shadow: inset 0 0 0 1px var(--ds-fill-3);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+.tpp-symbol {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--ds-text-primary);
+}
+.tpp-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ds-text-primary);
+}
+.tpp-account__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpp-date {
+  display: block;
+  color: var(--ds-text-primary);
+  white-space: nowrap;
+  cursor: text;
+}
+.tpp-time {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--ds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.tpp-dir {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--ds-fill-1);
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tpp-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tpp-status[data-status="win"] {
+  color: var(--ds-profit);
+  background: var(--ds-profit-surface);
+}
+.tpp-status[data-status="loss"] {
+  color: var(--ds-loss);
+  background: var(--ds-loss-surface);
+}
+.tpp-status[data-status="breakeven"] {
+  color: var(--ds-text-secondary);
+  background: var(--ds-fill-1);
+}
+.tpp-status[data-status="open"] {
+  color: var(--ds-info);
+  background: var(--ds-info-surface);
+}
+.tpp-pnl {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.tpp-pnl[data-tone="profit"] {
+  color: var(--ds-profit);
+}
+.tpp-pnl[data-tone="loss"] {
+  color: var(--ds-loss);
+}
+.tpp-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tpp-tag-mini {
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--ds-fill-1);
+  color: var(--ds-text-secondary);
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tpp-metricval {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tpp-rbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tpp-rbar__track {
+  width: 48px;
+  height: 4px;
+  background: var(--ds-fill-1);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.tpp-rbar__fill {
+  display: block;
+  height: 100%;
+}
+.tpp-rbar__fill[data-tone="profit"] {
+  background: var(--ds-profit);
+}
+.tpp-rbar__fill[data-tone="loss"] {
+  background: var(--ds-loss);
+}
+.tpp-inlineedit {
+  cursor: text;
+}
+/* the chart cell — ImageCell's thumbs restyled to the v3 64×36 thumbnail */
+.tpp-chartcell .tt-imgs {
+  padding: 0;
+  min-height: 0;
+}
+.tpp-chartcell .tt-thumb img {
+  width: 64px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: var(--ds-fill-1);
+  object-fit: cover;
+}
+.tpp-chartcell .tt-attach {
+  border-radius: 8px;
+}
+/* stars inside the grid drop the .tt cell padding */
+.tpp-grid .tt-stars {
+  padding: 0;
+  min-height: 0;
+}
+/* journal cell editors blend into the v3 grid type */
+.tpp-grid .tt-val,
+.tpp-grid .tt-input,
+.tpp-grid .tt-url-input {
+  padding: 0;
+  min-height: 0;
+  height: auto;
+  line-height: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+}
+.tpp-grid .tt-input {
+  min-width: 60px;
+}
+.tpp-grid .tt-input:focus,
+.tpp-grid .tt-url-input:focus {
+  box-shadow: 0 0 0 1.5px rgba(var(--alltra-brand-rgb), 0.55);
+  background: var(--ds-fill-1);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.tpp-grid .tt-val {
+  width: auto;
+  max-width: 240px;
+}
+.tpp-grid .tt-dash {
+  color: var(--ds-text-tertiary);
+}
+.tpp-grid .tt-tag-btn {
+  padding: 0;
+  min-height: 0;
+  width: auto;
+}
+.tpp-grid .tt-tag-btn:has(.tt-empty)::after {
+  content: "—";
+  color: var(--ds-text-tertiary);
+}
+.tpp-grid .tt-url {
+  padding: 0;
+  line-height: 16px;
+}
+
+/* ── checkbox + kebab ─────────────────────────────────────────────────────── */
+.tpp-check {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--ds-fill-1);
+  border: 1.5px solid var(--ds-fill-3);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--ds-duration-fast) var(--ds-ease-standard), border-color var(--ds-duration-fast) var(--ds-ease-standard);
+}
+.tpp-check[data-on] {
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
+}
+.tpp-check:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+.tpp-check__bar {
+  width: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.tpp-kebab {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: var(--ds-fill-1);
+  color: var(--ds-text-primary);
+  cursor: pointer;
+  transition: background var(--ds-duration-fast) var(--ds-ease-standard), transform 90ms var(--ds-ease-decelerate);
+}
+.tpp-kebab:hover {
+  background: var(--ds-fill-3);
+}
+.tpp-kebab:active {
+  transform: scale(0.96);
+}
+.tpp-menu {
+  position: fixed;
+  z-index: 8100;
+  width: 176px;
+  padding: 5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  animation: ctxIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tpp-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.tpp-menu__row:hover:not(:disabled) {
+  background: var(--hover-overlay-medium);
+}
+.tpp-menu__row:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+.tpp-menu__note {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.tpp-menu__row--danger {
+  color: var(--danger);
+}
+.tpp-menu__sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.tpp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── footer — count · pager · rows-per-page (3-zone grid) ─────────────────── */
+.tpp-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--ds-border-hairline);
+  padding: 16px 24px;
+}
+.tpp-foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+.tpp-foot__count {
+  justify-self: start;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ds-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tpp-foot__sum {
+  color: var(--ds-text-tertiary);
+}
+.tpp-foot__nav {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+}
+.tpp-pagebtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  transition: background var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-pagebtn:hover:not(:disabled) {
+  background: var(--ds-fill-1);
+  transition: none;
+}
+.tpp-pagebtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tpp-pagenum {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--ds-duration-base) var(--ds-ease-decelerate), color var(--ds-duration-base) var(--ds-ease-decelerate);
+}
+.tpp-pagenum:hover:not([data-on]) {
+  background: var(--ds-fill-1);
+  color: var(--ds-text-primary);
+  transition: none;
+}
+.tpp-pagenum[data-on] {
+  background: var(--ds-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.tpp-pageellipsis {
+  min-width: 28px;
+  text-align: center;
+  color: var(--ds-text-tertiary);
+  font-size: 13px;
+}
+.tpp-foot__perpage {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ds-text-tertiary);
+  white-space: nowrap;
+}
+.tpp-foot__perpage select {
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1.5px solid var(--ds-border-strong);
+  background: var(--ds-surface-3);
+  color: var(--ds-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* ── filters / columns popovers ───────────────────────────────────────────── */
+.tpp-panel {
+  position: fixed;
+  z-index: 8100;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 66dvh;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  animation: ctxIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tpp-filters {
+  width: 300px;
+  max-width: 84vw;
+}
+.tpp-cols {
+  width: 264px;
+  max-width: 84vw;
+}
+.tpp-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tpp-panel__sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpp-panel__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+.tpp-seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--hover-overlay);
+  border-radius: 10px;
+}
+.tpp-seg button {
+  flex: 1;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tpp-seg button:hover {
+  color: var(--text);
+}
+.tpp-seg button[data-on] {
+  background: var(--hover-overlay-strong);
+  color: var(--text);
+}
+.tpp-presets {
+  display: flex;
+  gap: 6px;
+}
+.tpp-presets button {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--hover-overlay);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tpp-presets button:hover {
+  background: var(--hover-overlay-medium);
+  color: var(--text);
+}
+.tpp-cols__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 288px;
+  overflow-y: auto;
+}
+.tpp-cols__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.tpp-cols__row[data-locked] {
+  color: var(--text-faint);
+  cursor: default;
+}
+.tpp-cols__row input {
+  accent-color: var(--alltra-brand);
+}
+.tpp-panel__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+.tpp-clear {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.tpp-clear:hover {
+  color: var(--text);
+}
+
+/* ── card view ────────────────────────────────────────────────────────────── */
+.tpp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 16px 20px;
+  /* pin the type — outside .tpp-grid the editor's --ed-size/--ed-lh would
+     leak in and the cards would track the prose font slider */
+  font-size: 13px;
+  line-height: 20px;
+}
+/* fullscreen: the cards region scrolls itself (the container clips overflow) */
+.tt-overlay-body .tpp-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+.tpp-tcard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ds-border-hairline);
+  border-radius: 12px;
+  background: var(--ds-surface-3);
+}
+.tpp-tcard__mid {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tpp-grid,
+  .tpp-grid[data-collapse-motion],
+  .tpp-gr--body,
+  .tpp-gcell,
+  .tpp-fillcell,
+  .tpp-cellslide,
+  .tpp-group__toggle,
+  .tpp-group__chevron {
+    transition: none;
+  }
+}
