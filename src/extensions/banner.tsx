@@ -12,6 +12,7 @@ import { Upload, Trash2 } from "lucide-react";
 import { BANNERS } from "../banners";
 import { useAppearance } from "../hooks/useAppearance";
 import { useFlipPosition } from "../lib/popover";
+import { storeImage, useImageSrc } from "../imageStore";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -30,6 +31,7 @@ function bgFor(idx: number, image: string | null, dark: boolean) {
 function BannerView({ node, updateAttributes, deleteNode }: NodeViewProps) {
   const idx = (node.attrs.colorIndex as number) ?? 0;
   const image = (node.attrs.image as string | null) ?? null;
+  const resolvedImage = useImageSrc(image) ?? null; // idb:// → object URL
   const dark = useAppearance() === "dark";
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -73,12 +75,11 @@ function BannerView({ node, updateAttributes, deleteNode }: NodeViewProps) {
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        updateAttributes({ image: reader.result as string });
+      // the cover goes to IndexedDB; the node keeps an idb:// reference
+      void storeImage(file).then((ref) => {
+        updateAttributes({ image: ref });
         setOpen(false);
-      };
-      reader.readAsDataURL(file);
+      });
     };
     input.click();
   };
@@ -92,7 +93,7 @@ function BannerView({ node, updateAttributes, deleteNode }: NodeViewProps) {
       title="Click to change banner"
       onClick={openPicker}
       style={{
-        ...bgFor(idx, image, dark),
+        ...bgFor(idx, resolvedImage, dark),
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}

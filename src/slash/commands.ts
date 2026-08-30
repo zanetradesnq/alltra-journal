@@ -38,6 +38,7 @@ import {
 } from "../editorIcons";
 import type { Editor, Range } from "@tiptap/core";
 import { HORIZONTAL_TABLE_HTML, VERTICAL_TABLE_HTML } from "../templates";
+import { storeImage } from "../imageStore";
 
 export interface SlashCommand {
   id: string;
@@ -55,7 +56,8 @@ export interface SlashCommand {
   run: (editor: Editor, range: Range) => void;
 }
 
-/** Open the OS file picker and hand back the chosen image as a data URL. */
+/** Open the OS file picker; the image is stored in IndexedDB and handed back
+ *  as an `idb://` reference (never a base64 blob in the document). */
 function pickImageFile(onPick: (src: string) => void): void {
   const input = document.createElement("input");
   input.type = "file";
@@ -63,9 +65,7 @@ function pickImageFile(onPick: (src: string) => void): void {
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onPick(reader.result as string);
-    reader.readAsDataURL(file);
+    void storeImage(file).then(onPick);
   };
   input.click();
 }
@@ -371,6 +371,17 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
 
   // ── Performance (live stats from your logged trades + a mistakes log) ──────
+  {
+    id: "day-header",
+    title: "Day summary",
+    description: "Net P&L, trades & win rate for this day + mood, rules, grade",
+    aliases: ["day", "summary", "day summary", "mood", "emotion", "emotions", "grade", "rules", "header"],
+    group: "Performance",
+    icon: DateIcon,
+    // inserts at the top of the doc, not at the cursor → "format" (no stray paragraph)
+    pinKind: "format",
+    run: (e, r) => e.chain().focus().deleteRange(r).insertDayHeader().run(),
+  },
   {
     id: "stats-summary",
     title: "Performance stats",

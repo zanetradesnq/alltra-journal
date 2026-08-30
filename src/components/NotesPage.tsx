@@ -5,7 +5,7 @@
  * an optional title, body, tags, and a card color → Save. Click a card to edit.
  * Everything persists to localStorage, independent of journal entries.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
@@ -26,8 +26,9 @@ import StarterKit from "@tiptap/starter-kit";
 import UnderlineExt from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
-import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import { ResizableImage } from "../extensions/image";
+import { imagePasteProps, resolveImage, IDB_PREFIX } from "../imageStore";
 import TextStyle from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 import TaskItem from "@tiptap/extension-task-item";
@@ -48,6 +49,7 @@ import { TradeLink } from "../extensions/tradeLink";
 import { TradeTable } from "../extensions/tradeTable";
 import { JournalStats } from "../extensions/journalStats";
 import { TrailingNode } from "../extensions/trailingNode";
+import { DayHeader } from "../extensions/dayHeader";
 import { ListExit } from "../extensions/listExit";
 import { TaskListVariant } from "../extensions/taskListVariant";
 import { SlashCommand, type SlashFavorites } from "../slash/SlashCommand";
@@ -114,6 +116,9 @@ function stripHtml(html: string): string {
   tmp.innerHTML = html;
   return (tmp.textContent || "").trim();
 }
+// a note with only a pasted screenshot (or banner / table) is still a note
+const hasContent = (html: string): boolean =>
+  stripHtml(html).length > 0 || /<img\b|data-type="(banner|trade-table)"/.test(html);
 
 function loadNotes(): Note[] {
   try {
@@ -378,7 +383,30 @@ function NoteCard({
   onMenu: (anchor: HTMLElement) => void;
   menuOpen?: boolean;
 }) {
-  const hasBody = stripHtml(note.body).length > 0;
+  const hasBody = hasContent(note.body);
+  // the read-only preview is raw HTML — idb:// refs are neutralised to data-idb
+  // BEFORE they hit the DOM (no broken-image flash / unknown-scheme errors),
+  // then resolved to object URLs once mounted
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const previewHtml = useMemo(
+    () =>
+      note.body.replace(
+        /<img\b([^>]*?)\ssrc="(idb:\/\/[^"]+)"/g,
+        '<img$1 data-idb="$2"',
+      ),
+    [note.body],
+  );
+  useEffect(() => {
+    const root = bodyRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLImageElement>("img[data-idb]").forEach((img) => {
+      const ref = img.getAttribute("data-idb") ?? "";
+      if (ref.startsWith(IDB_PREFIX))
+        void resolveImage(ref).then((u) => {
+          if (u) img.src = u;
+        });
+    });
+  }, [previewHtml]);
   return (
     <div
       onClick={onEdit}
@@ -436,8 +464,9 @@ function NoteCard({
           )}
           {hasBody && (
             <div
+              ref={bodyRef}
               className="note-card-body journal note-rich min-h-0 flex-1"
-              dangerouslySetInnerHTML={{ __html: note.body }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           )}
         </div>
@@ -462,9 +491,8 @@ function NoteEditor({
       UnderlineExt,
       Link.configure({ openOnClick: false, autolink: true }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      // allowBase64: /image inserts data URLs — without it they parse to nothing
-      // on reload and the image is silently lost
-      Image.configure({ allowBase64: true }),
+      // the journal's image node (resizable, idb:// + legacy base64 aware)
+      ResizableImage,
       Placeholder.configure({
         showOnlyCurrent: true,
         placeholder: ({ node }) =>
@@ -494,6 +522,7 @@ function NoteEditor({
       JournalStats,
       IconNode,
       Banner,
+      DayHeader, // so /day never throws here (a note has no date — stats stay blank)
       TrailingNode,
       PageLink.configure({
         getEntries: pageLinks ? pageLinks.getEntries : () => [],
@@ -507,7 +536,10 @@ function NoteEditor({
     ],
     content: initialHtml || "",
     autofocus: "end",
-    editorProps: { attributes: { class: "pm", spellcheck: "false" } },
+    editorProps: {
+      attributes: { class: "pm", spellcheck: "false" },
+      ...imagePasteProps, // paste / drop screenshots here too
+    },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
 
@@ -600,7 +632,7 @@ function Composer({
     if (t && !tags.includes(t)) setTags([...tags, t]);
     setTagInput("");
   };
-  const canSave = title.trim().length > 0 || stripHtml(body).length > 0;
+  const canSave = title.trim().length > 0 || hasContent(body);
   const commit = () =>
     onSave({
       ...note,

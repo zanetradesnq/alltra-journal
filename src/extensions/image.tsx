@@ -6,6 +6,7 @@
  * select (ring + handles), then Backspace/Delete or the corner button removes it.
  */
 import { useEffect, useRef } from "react";
+import { useImageSrc } from "../imageStore";
 import Image from "@tiptap/extension-image";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
@@ -23,6 +24,8 @@ function ImageView({
   deleteNode,
 }: NodeViewProps) {
   const width = (node.attrs.width as number | null) ?? null;
+  // idb:// references resolve to object URLs; data/http URLs pass through
+  const resolvedSrc = useImageSrc(node.attrs.src as string | null);
   const boxRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   // teardown for an in-flight resize drag; runs on unmount too, so deleting the
@@ -33,7 +36,11 @@ function ImageView({
   // First load with no saved width → spawn at min(natural, cap, container).
   const settleSize = () => {
     if (width != null || !imgRef.current) return;
-    const natural = imgRef.current.naturalWidth || SPAWN_MAX;
+    // an <img> with no src yet (idb:// still resolving) reports complete=true
+    // with naturalWidth 0 — wait for the real load, or every screenshot would
+    // be committed at the 440px cap before it's even read
+    if (!imgRef.current.naturalWidth) return;
+    const natural = imgRef.current.naturalWidth;
     const container = boxRef.current?.parentElement?.clientWidth ?? 640;
     updateAttributes({ width: Math.round(Math.min(natural, SPAWN_MAX, container)) });
   };
@@ -127,7 +134,7 @@ function ImageView({
       >
         <img
           ref={imgRef}
-          src={node.attrs.src as string}
+          src={resolvedSrc}
           alt={(node.attrs.alt as string) || ""}
           title={(node.attrs.title as string) || ""}
           onLoad={settleSize}

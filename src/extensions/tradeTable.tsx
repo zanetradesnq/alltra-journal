@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import type { Trade } from "../trades";
 import { setTableTrades } from "../tradeStore";
+import { storeImage, useImageSrc } from "../imageStore";
 
 /* ── model ─────────────────────────────────────────────────────────────────── */
 type ColType = "text" | "num" | "date" | "select" | "url" | "img" | "rating";
@@ -560,6 +561,20 @@ function ColumnMenu({
   );
 }
 
+/* an <img> whose src may be an idb:// reference (resolved to an object URL) */
+function ResolvedImg({
+  src,
+  alt,
+  onClick,
+}: {
+  src: string;
+  alt: string;
+  onClick?: () => void;
+}) {
+  const url = useImageSrc(src);
+  return <img src={url} alt={alt} onClick={onClick} />;
+}
+
 /* ── an image-attachment cell (Aayan's "click and attach images to a trade") ───── */
 function ImageCell({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -568,22 +583,14 @@ function ImageCell({ value, onChange }: { value: string[]; onChange: (v: string[
     const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
     e.target.value = "";
     if (files.length === 0) return;
-    Promise.all(
-      files.map(
-        (f) =>
-          new Promise<string>((res) => {
-            const r = new FileReader();
-            r.onload = () => res(typeof r.result === "string" ? r.result : "");
-            r.readAsDataURL(f);
-          }),
-      ),
-    ).then((urls) => onChange([...value, ...urls.filter(Boolean)]));
+    // screenshots go to IndexedDB; the cell keeps only idb:// references
+    void Promise.all(files.map((f) => storeImage(f))).then((refs) => onChange([...value, ...refs]));
   };
   return (
     <div className="tt-imgs">
       {value.map((src, i) => (
         <span key={i} className="tt-thumb">
-          <img src={src} alt="" onClick={() => setLightbox(src)} />
+          <ResolvedImg src={src} alt="" onClick={() => setLightbox(src)} />
           <button
             type="button"
             className="tt-thumb-x"
@@ -601,7 +608,7 @@ function ImageCell({ value, onChange }: { value: string[]; onChange: (v: string[
       {lightbox &&
         createPortal(
           <div className="tt-lightbox" onClick={() => setLightbox(null)}>
-            <img src={lightbox} alt="" />
+            <ResolvedImg src={lightbox} alt="" />
           </div>,
           document.body,
         )}

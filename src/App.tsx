@@ -32,6 +32,9 @@ import { TradeTable, tradeTableHTML } from "./extensions/tradeTable";
 import { JournalStats, journalStatsHTML } from "./extensions/journalStats";
 import { MOCK_TRADES } from "./trades";
 import { allTrades, pruneTrades } from "./tradeStore";
+import { imagePasteProps, pruneImages, collectImageIds } from "./imageStore";
+import { DayHeader, DAY_HEADER_HTML } from "./extensions/dayHeader";
+import { EmotionsWidget } from "./components/EmotionsWidget";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
 import { BlockDim, setDimmedBlock, clearDimmedBlock } from "./extensions/blockDim";
@@ -282,10 +285,21 @@ function hasMeaningfulContent(html: string): boolean {
   const el = document.createElement("div");
   el.innerHTML = html;
   return !!el.querySelector(
-    'img[src], table, [data-type="banner"], [data-type="trade-table"], [data-type="journal-stats"], [data-type="page-link"], [data-type="trade-link"]'
+    'img[src], table, [data-type="banner"], [data-type="trade-table"], [data-type="journal-stats"], [data-type="page-link"], [data-type="trade-link"], [data-type="day-header"][data-filled]'
   );
 }
 
+
+// saved custom templates' HTML — they can reference idb:// screenshots too
+function customTemplateBodies(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_TEMPLATES_KEY);
+    if (raw) return (JSON.parse(raw) as { html?: string }[]).map((t) => t.html ?? "");
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
 
 // every trade-table id present in the given HTML payloads (for store pruning)
 function collectTradeTableIds(htmls: string[]): Set<string> {
@@ -1747,6 +1761,8 @@ export default function App() {
         ...noteBodies(),
       ])
     );
+    // (IndexedDB screenshots are pruned once at startup, never here — a deleted
+    // image must survive for Ctrl+Z, see the mount effect below the editor)
   };
 
   const schedulePersist = () => {
@@ -1792,6 +1808,10 @@ export default function App() {
       JournalStats,
       IconNode,
       Banner,
+      // the per-day summary strip — computed from this entry's date + tables
+      DayHeader.configure({
+        getDate: () => datesRef.current[pageRef.current] ?? "",
+      }),
       // always keep a typeable empty paragraph after the last block (atom blocks
       // like the trade table would otherwise trap the cursor at the doc's end)
       TrailingNode,
@@ -1819,7 +1839,11 @@ export default function App() {
       }),
     ],
     content: pagesRef.current[page],
-    editorProps: { attributes: { class: "pm", spellcheck: "false" } },
+    editorProps: {
+      attributes: { class: "pm", spellcheck: "false" },
+      // Ctrl+V a screenshot / drop image files → IndexedDB-backed image nodes
+      ...imagePasteProps,
+    },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       setHasBanner(editor.state.doc.firstChild?.type.name === "banner");
@@ -1834,6 +1858,40 @@ export default function App() {
       schedulePersist();
     },
   });
+
+  // Startup garbage collection for IndexedDB screenshots: drop blobs nothing
+  // references any more (pages, trash, notes, custom templates). Once, at boot —
+  // undo history doesn't survive a reload and nothing is mid-insert yet.
+  useEffect(() => {
+    void pruneImages(
+      collectImageIds([
+        ...pagesRef.current,
+        ...trashRef.current.map((t) => t.html),
+        ...noteBodies(),
+        ...customTemplateBodies(),
+      ])
+    );
+  }, []);
+
+  // The day header shows the entry's date + same-day trades. Editing the date
+  // in the top bar changes no node, so the React node view wouldn't re-render —
+  // touch the header node (history-free) so it picks up the new date.
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.command(({ tr, state }) => {
+      let hit = false;
+      state.doc.descendants((n, pos) => {
+        if (hit) return false;
+        if (n.type.name === "dayHeader") {
+          tr.setNodeMarkup(pos, undefined, { ...n.attrs }).setMeta("addToHistory", false);
+          hit = true;
+        }
+        return !hit;
+      });
+      return hit;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dates[page], editor]);
 
   // Resolve the open provisional (always the last entry): clear the flag if it
   // now has content (commit), or drop it from the arrays if it's still empty.
@@ -1910,10 +1968,13 @@ export default function App() {
   };
 
   // open a fresh PROVISIONAL entry for the given date — not persisted until typed
-  const startProvisional = (dateKey: string) => {
+  // every new ENTRY opens with its day summary strip + a paragraph to type in
+  // (an untouched strip doesn't count as content, so a blank draft is still
+  // discarded). Template drafts pass "" — a template canvas starts empty.
+  const startProvisional = (dateKey: string, initial: string = DAY_HEADER_HTML + "<p></p>") => {
     if (editor) pagesRef.current[page] = editor.getHTML();
     discardProvisional(); // drop any existing empty provisional first
-    pagesRef.current.push("");
+    pagesRef.current.push(initial);
     const idx = pagesRef.current.length - 1;
     setTitles((t) => [...t, "Untitled"]);
     setEntryTitles((t) => [...t, ""]);
@@ -2364,7 +2425,7 @@ export default function App() {
   const startCustomTemplate = () => {
     setTemplatesOpen(false);
     setView("editor");
-    startProvisional(dates[page] ?? DEFAULT_DATE); // blank, in-memory draft
+    startProvisional(dates[page] ?? DEFAULT_DATE, ""); // blank, in-memory draft
     setDraftName("");
     setAuthoring(true);
   };
@@ -2678,7 +2739,11 @@ export default function App() {
       label: fmtDateLabel(e.date),
       // the chrome title (byline) wins — template headers live there now
       title: entryTitles[e.index]?.trim() || titles[e.index] || "",
-      snippet: e.text.slice(0, 70) || "Image / attachment",
+      snippet:
+        e.text.slice(0, 70) ||
+        ((pagesRef.current[e.index] ?? "").includes('data-filled="1"')
+          ? "Day summary"
+          : "Image / attachment"),
     }));
 
   // current day's pages, for the book arrows + the "n / m" page count
@@ -3582,6 +3647,19 @@ export default function App() {
             </section>
 
             <div className="border-t border-dashed border-border" />
+
+            {/* emotions — the mood trend across every entry's day summary */}
+            <section>
+              <h3 className="mb-4 text-[15px] font-semibold tracking-tight text-text">
+                Emotions
+              </h3>
+              <EmotionsWidget
+                pages={pagesRef.current}
+                dates={dates}
+                exclude={provisionalIndex}
+                stamp={updatedAt}
+              />
+            </section>
 
             {/* pinned — slash commands starred from the "/" menu; newest on top */}
             <section>

@@ -47,6 +47,12 @@ export function allTrades(): Trade[] {
   return Object.values(read()).flat();
 }
 
+/** Trades keyed by the table that logged them (the day header reads the
+ *  tables that live on ITS page). */
+export function tradesByTable(): Record<string, Trade[]> {
+  return read();
+}
+
 /**
  * Drop store entries whose table no longer exists anywhere in the document
  * (deleting a trade-table block otherwise leaves its trades counted forever).
