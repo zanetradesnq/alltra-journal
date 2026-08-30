@@ -2255,9 +2255,14 @@ h2 {
     transform: rotate(-1.5deg) scale(1);
   }
 }
+/* the lift-fade paints ONLY while a drag ghost is actually mounted — if the
+   decoration ever strands (lost pointerup, HMR, any path we haven't met yet),
+   the block can no longer stay greyed out: no live drag → no dim, period. */
 .block-dragging {
-  opacity: 0.4 !important;
   transition: opacity 0.12s ease;
+}
+body:has(.drag-ghost) .block-dragging {
+  opacity: 0.4 !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .drag-line,
