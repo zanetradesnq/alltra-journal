@@ -136,14 +136,33 @@ export function noteBodies(): string[] {
   return loadNotes().map((n) => n.body || "");
 }
 
+/** Notes as searchable rows for the ⌘K palette. */
+export function noteSummaries(): { id: string; title: string; text: string }[] {
+  return loadNotes().map((n) => ({ id: n.id, title: n.title, text: stripHtml(n.body) }));
+}
+
 export function NotesPage({
   onBack,
   favorites,
   pageLinks,
-}: { onBack: () => void } & NotesJournalWiring) {
+  openNoteId,
+  onOpened,
+}: {
+  onBack: () => void;
+  /** deep-link from the ⌘K palette: open this note's composer on arrival */
+  openNoteId?: string | null;
+  onOpened?: () => void;
+} & NotesJournalWiring) {
   const [notes, setNotes] = useState<Note[]>(loadNotes);
   const [query, setQuery] = useState("");
   const [composer, setComposer] = useState<Note | null>(null);
+  useEffect(() => {
+    if (!openNoteId) return;
+    const n = notes.find((x) => x.id === openNoteId);
+    if (n) setComposer(n);
+    onOpened?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNoteId]);
   // per-card kebab (⋮) menu — which note, and where to anchor it
   const [cardMenu, setCardMenu] = useState<{
     id: string;
@@ -528,7 +547,10 @@ function NoteEditor({
         getEntries: pageLinks ? pageLinks.getEntries : () => [],
         onOpen: pageLinks ? pageLinks.onOpen : () => {},
       }),
-      TradeLink.configure({ getTrades: () => (allTrades().length ? allTrades() : MOCK_TRADES), onOpen: () => {} }),
+      TradeLink.configure({
+        getTrades: () => (allTrades().length ? allTrades() : MOCK_TRADES),
+        onOpen: (id) => window.dispatchEvent(new CustomEvent("alltra:trade", { detail: { id } })),
+      }),
       ListExit,
       SlashCommand.configure(
         favorites ? { favorites } : {}

@@ -804,8 +804,21 @@ function RBar({ value }: { value: string }) {
   );
 }
 
+/** Ask the app to open a trade's details panel (node views have no App access). */
+export const openTradeDetails = (tradeId: string): void => {
+  window.dispatchEvent(new CustomEvent("alltra:trade", { detail: { id: tradeId } }));
+};
+
 /* v3 kebab — per-row actions dropdown (portal, bottom-end) */
-function RowKebab({ onDuplicate, onDelete }: { onDuplicate: () => void; onDelete: () => void }) {
+function RowKebab({
+  onView,
+  onDuplicate,
+  onDelete,
+}: {
+  onView: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -838,8 +851,15 @@ function RowKebab({ onDuplicate, onDelete }: { onDuplicate: () => void; onDelete
         pos &&
         createPortal(
           <div data-tpp-kebab className="tpp-menu" style={{ left: pos.x - 176, top: pos.y }}>
-            <button type="button" className="tpp-menu__row" disabled>
-              <Eye size={14} /> View details <span className="tpp-menu__note">Unavailable</span>
+            <button
+              type="button"
+              className="tpp-menu__row"
+              onClick={() => {
+                onView();
+                setOpen(false);
+              }}
+            >
+              <Eye size={14} /> View details
             </button>
             <button
               type="button"
@@ -1102,16 +1122,20 @@ function TradeTableV3({
       const hue = chipHue(sym || "?");
       return (
         <span className="tpp-symcell">
-          <span
-            className="tpp-logo"
+          {/* the mark is the row's "open details" affordance (the label stays editable) */}
+          <button
+            type="button"
+            className="tpp-logo tpp-logo--btn"
+            title="View trade details"
             style={
               sym
                 ? { background: `color-mix(in srgb, ${hue} 14%, transparent)`, color: hue }
                 : undefined
             }
+            onClick={() => openTradeDetails(r.id)}
           >
             {sym.slice(0, 2)}
-          </span>
+          </button>
           <span className="tpp-symbol">
             <TextCell value={str} type="text" onCommit={(v) => setCell(r.id, c.id, v)} />
           </span>
@@ -1242,7 +1266,15 @@ function TradeTableV3({
             }}
             onKeyDown={(e) => e.stopPropagation()}
           />
-          <span className="tpp-kbd">⌘K</span>
+          <button
+            type="button"
+            className="tpp-kbd"
+            title="Open search (⌘K)"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => window.dispatchEvent(new CustomEvent("alltra:spotlight"))}
+          >
+            ⌘K
+          </button>
         </div>
         <div className="tpp-toolbar__actions">
           <button
@@ -1479,7 +1511,11 @@ function TradeTableV3({
                       }),
                     )}
                     <div className="tpp-gcell tpp-col-actions" role="cell">
-                      <RowKebab onDuplicate={() => duplicateRow(r.id)} onDelete={() => delRow(r.id)} />
+                      <RowKebab
+                        onView={() => openTradeDetails(r.id)}
+                        onDuplicate={() => duplicateRow(r.id)}
+                        onDelete={() => delRow(r.id)}
+                      />
                     </div>
                   </div>
                 ))}

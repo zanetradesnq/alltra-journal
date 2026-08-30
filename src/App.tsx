@@ -35,6 +35,7 @@ import { allTrades, pruneTrades } from "./tradeStore";
 import { imagePasteProps, pruneImages, collectImageIds } from "./imageStore";
 import { DayHeader, DAY_HEADER_HTML } from "./extensions/dayHeader";
 import { EmotionsWidget } from "./components/EmotionsWidget";
+import { BackupMenu } from "./components/BackupMenu";
 import { ListExit } from "./extensions/listExit";
 import { TaskListVariant } from "./extensions/taskListVariant";
 import { BlockDim, setDimmedBlock, clearDimmedBlock } from "./extensions/blockDim";
@@ -95,7 +96,9 @@ import { TodaysJournalWidget } from "./components/TodaysJournalWidget";
 import { JournalQualityWidget } from "./components/JournalQualityWidget";
 import { BlockMenu } from "./components/BlockMenu";
 import { JournalByline, TITLE_MAX } from "./components/JournalByline";
-import { NotesPage, noteBodies } from "./components/NotesPage";
+import { NotesPage, noteBodies, noteSummaries } from "./components/NotesPage";
+import { Spotlight, extractTags } from "./components/Spotlight";
+import { TradeDetailsPanel } from "./components/TradeDetailsPanel";
 import { SelectionMenu, type MenuState } from "./components/SelectionMenu";
 import { EditorContextMenu } from "./components/EditorContextMenu";
 import { TemplateGallery } from "./components/TemplateGallery";
@@ -285,7 +288,7 @@ function hasMeaningfulContent(html: string): boolean {
   const el = document.createElement("div");
   el.innerHTML = html;
   return !!el.querySelector(
-    'img[src], table, [data-type="banner"], [data-type="trade-table"], [data-type="journal-stats"], [data-type="page-link"], [data-type="trade-link"], [data-type="day-header"][data-filled]'
+    'img[src], table, [data-type="banner"], [data-type="trade-table"], [data-type="journal-stats"], [data-type="pageLink"], [data-type="tradeLink"], [data-type="day-header"][data-filled]'
   );
 }
 
@@ -299,6 +302,44 @@ function customTemplateBodies(): string[] {
     /* ignore */
   }
   return [];
+}
+
+/* ── trade lookup — the FULL row behind a trade id, and the entry it lives on ── */
+export interface TradeRowHit {
+  tableId: string;
+  entryIndex: number; // -1 when the table lives in a note or is gone
+  columns: { id: string; name: string; type: string; group?: string; options?: { label: string; color: string }[] }[];
+  row: { id: string; cells: Record<string, unknown> };
+}
+function findTradeRow(tradeId: string, pages: string[], extra: string[] = []): TradeRowHit | null {
+  const el = document.createElement("div");
+  const scan = (html: string, entryIndex: number): TradeRowHit | null => {
+    if (!html.includes(tradeId)) return null;
+    el.innerHTML = html;
+    for (const n of Array.from(el.querySelectorAll('[data-type="trade-table"]'))) {
+      try {
+        const data = JSON.parse(n.getAttribute("data-rows") || "{}") as {
+          id?: string;
+          columns?: TradeRowHit["columns"];
+          rows?: TradeRowHit["row"][];
+        };
+        const row = data.rows?.find((r) => r.id === tradeId);
+        if (row && data.columns) return { tableId: data.id ?? "", entryIndex, columns: data.columns, row };
+      } catch {
+        /* skip */
+      }
+    }
+    return null;
+  };
+  for (let i = 0; i < pages.length; i++) {
+    const hit = scan(pages[i], i);
+    if (hit) return hit;
+  }
+  for (const html of extra) {
+    const hit = scan(html, -1);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 // every trade-table id present in the given HTML payloads (for store pruning)
@@ -1236,134 +1277,6 @@ function TrashModal({
   );
 }
 
-/* ── ⌘K spotlight search ─────────────────────────────────────────────────── */
-
-type SearchEntry = { index: number; title: string; date: string; text: string };
-
-function SpotlightModal({
-  entries,
-  onPick,
-  onClose,
-}: {
-  entries: SearchEntry[];
-  onPick: (i: number) => void;
-  onClose: () => void;
-}) {
-  const [q, setQ] = useState("");
-  const [sel, setSel] = useState(0);
-
-  const ql = q.trim().toLowerCase();
-  const results = ql
-    ? entries.filter(
-        (e) =>
-          e.title.toLowerCase().includes(ql) || e.text.toLowerCase().includes(ql)
-      )
-    : entries;
-
-  useEffect(() => setSel(0), [q]);
-
-  // keep the arrow-highlighted result scrolled into view for keyboard users
-  const listRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-idx="${sel}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [sel]);
-
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSel((s) => Math.min(results.length - 1, s + 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSel((s) => Math.max(0, s - 1));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (results[sel]) onPick(results[sel].index);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      onClose();
-    }
-  };
-
-  const snippet = (text: string) => {
-    if (!ql) return text.slice(0, 90);
-    const i = text.toLowerCase().indexOf(ql);
-    if (i < 0) return text.slice(0, 90);
-    const start = Math.max(0, i - 28);
-    return (
-      <>
-        {start > 0 ? "…" : ""}
-        {text.slice(start, i)}
-        <mark className="rounded bg-[rgba(0,102,255,0.18)] text-text">
-          {text.slice(i, i + ql.length)}
-        </mark>
-        {text.slice(i + ql.length, i + ql.length + 52)}…
-      </>
-    );
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[400] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
-      onMouseDown={onClose}
-    >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        className="flex max-h-[60vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-elevated shadow-lg"
-      >
-        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-          <Search size={17} className="text-text-faint" />
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={onKey}
-            placeholder="Search entries…"
-            className="flex-1 bg-transparent text-[14px] text-text outline-none placeholder:text-text-faint"
-          />
-          <kbd className="rounded border border-border bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] text-text-faint">
-            Esc
-          </kbd>
-        </div>
-
-        <div ref={listRef} className="flex-1 overflow-y-auto p-2">
-          {results.length === 0 ? (
-            <p className="px-3 py-10 text-center text-[13px] text-text-faint">
-              No matching entries.
-            </p>
-          ) : (
-            results.map((r, idx) => (
-              <button
-                key={r.index}
-                data-idx={idx}
-                onMouseEnter={() => setSel(idx)}
-                onClick={() => onPick(r.index)}
-                className={
-                  "flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors " +
-                  (idx === sel ? "bg-accent-soft" : "hover:bg-[var(--hover-overlay)]")
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-[13.5px] font-medium text-text">
-                    {r.title || "Untitled"}
-                  </span>
-                  <span className="ml-auto shrink-0 text-[11px] text-text-faint">
-                    {r.date}
-                  </span>
-                </div>
-                <span className="block truncate text-[12px] text-text-muted">
-                  {r.text ? snippet(r.text) : "Empty entry"}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── share / export menu ─────────────────────────────────────────────────── */
 
 function ShareMenu({
@@ -1485,7 +1398,25 @@ export default function App() {
   const [updatedAt, setUpdatedAt] = useState<number>(() => boot?.updatedAt ?? Date.now());
   const [trash, setTrash] = useState<TrashItem[]>(() => boot?.trash ?? []);
   const [trashOpen, setTrashOpen] = useState(false);
+  // the trade details panel — opened from trade-link chips, the trade grid's
+  // kebab / symbol mark (window "alltra:trade" event) and the stats blocks
+  const [tradeDetailId, setTradeDetailId] = useState<string | null>(null);
+  useEffect(() => {
+    const onEvt = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id;
+      if (id) setTradeDetailId(id);
+    };
+    window.addEventListener("alltra:trade", onEvt);
+    return () => window.removeEventListener("alltra:trade", onEvt);
+  }, []);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  // pre-filled query ("#tag" from a tag pill) + a note to open after a pick
+  const [spotlightQuery, setSpotlightQuery] = useState("");
+  const [spotNoteId, setSpotNoteId] = useState<string | null>(null);
+  const closeSpotlight = () => {
+    setSpotlightOpen(false);
+    setSpotlightQuery("");
+  };
   const [aiBusy, setAiBusy] = useState(false);
   // VIEW state is in-memory (NOT localStorage) → fresh load always lands on the
   // calendar home; in-session navigation keeps you in the editor at your entry.
@@ -1803,7 +1734,13 @@ export default function App() {
       TableCell,
       Callout,
       Toggle,
-      Tag,
+      // a tag pill's menu offers "Find entries with this tag" → ⌘K in #tag mode
+      Tag.configure({
+        onSearchTag: (name) => {
+          setSpotlightQuery(`#${name}`);
+          setSpotlightOpen(true);
+        },
+      }),
       TradeTable,
       JournalStats,
       IconNode,
@@ -1826,9 +1763,7 @@ export default function App() {
           const t = allTrades();
           return t.length ? t : MOCK_TRADES;
         },
-        onOpen: () => {
-          /* wires to the Alltra trade dashboard at launch */
-        },
+        onOpen: (id) => setTradeDetailId(id),
       }),
       ListExit,
       SlashCommand.configure({
@@ -2331,7 +2266,8 @@ export default function App() {
     setTimeout(() => w.print(), 300);
   };
 
-  // ⌘K / Ctrl+K opens spotlight search
+  // ⌘K / Ctrl+K opens spotlight search (so does the trade grid's ⌘K chip, via
+  // a window event — it lives inside a TipTap node view with no App access)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -2339,8 +2275,13 @@ export default function App() {
         openSpotlight();
       }
     };
+    const onEvt = () => openSpotlight();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("alltra:spotlight", onEvt);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("alltra:spotlight", onEvt);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, page]);
 
@@ -2831,19 +2772,56 @@ export default function App() {
           onClose={() => setTrashOpen(false)}
         />
       )}
+      {tradeDetailId && (() => {
+        const hit = findTradeRow(tradeDetailId, pagesRef.current, noteBodies());
+        const trade = allTrades().find((t) => t.id === tradeDetailId) ?? MOCK_TRADES.find((t) => t.id === tradeDetailId) ?? null;
+        return (
+          <TradeDetailsPanel
+            tradeId={tradeDetailId}
+            hit={hit}
+            trade={trade}
+            entryDate={hit && hit.entryIndex >= 0 ? (dates[hit.entryIndex] ?? null) : null}
+            onClose={() => setTradeDetailId(null)}
+            onGoToEntry={(i) => {
+              setTradeDetailId(null);
+              if (view !== "editor") setView("editor");
+              goTo(i);
+            }}
+          />
+        );
+      })()}
       {spotlightOpen && (
-        <SpotlightModal
-          entries={titles.map((t, i) => ({
-            index: i,
-            title: t || "Untitled",
-            date: dates[i] ?? "",
-            text: htmlToText(pagesRef.current[i] ?? ""),
-          }))}
-          onPick={(i) => {
+        <Spotlight
+          entries={titles
+            .map((t, i) => ({
+              index: i,
+              title: entryTitles[i]?.trim() || t || "Untitled",
+              date: dates[i] ?? "",
+              text: htmlToText(pagesRef.current[i] ?? ""),
+              tags: extractTags(pagesRef.current[i] ?? ""),
+            }))
+            .filter((e) => e.index !== provisionalIndex)}
+          notes={noteSummaries()}
+          commands={view === "editor" && editor ? SLASH_COMMANDS : null}
+          initialQuery={spotlightQuery}
+          onPickEntry={(i) => {
+            if (view !== "editor") setView("editor");
             goTo(i);
-            setSpotlightOpen(false);
+            closeSpotlight();
           }}
-          onClose={() => setSpotlightOpen(false)}
+          onPickNote={(id) => {
+            setSpotNoteId(id);
+            goNotes();
+            closeSpotlight();
+          }}
+          onRunCommand={(cmd) => {
+            closeSpotlight();
+            if (editor) {
+              editor.commands.focus();
+              runFavoriteCommand(editor, cmd);
+            }
+          }}
+          onClose={closeSpotlight}
         />
       )}
       {(!focusMode || navPeek) && (
@@ -3057,6 +3035,18 @@ export default function App() {
                 <ChromeBtn title="Redo" onClick={redo}>
                   <ArrowRight size={15} />
                 </ChromeBtn>
+                <BackupMenu
+                  hasContent={pagesRef.current.some((h) => hasMeaningfulContent(h))}
+                  entries={() =>
+                    pagesRef.current
+                      .map((html, i) => ({
+                        date: dates[i] ?? "",
+                        title: entryTitles[i]?.trim() || titles[i] || "",
+                        html,
+                      }))
+                      .filter((e, i) => i !== provisionalIndex && hasMeaningfulContent(e.html))
+                  }
+                />
                 <span className="mx-0.5 h-4 w-px bg-[var(--border-2)]" />
               </>
             )}
@@ -3796,6 +3786,8 @@ export default function App() {
           <div className="flex flex-1 overflow-hidden">
             <NotesPage
               onBack={goCalendar}
+              openNoteId={spotNoteId}
+              onOpened={() => setSpotNoteId(null)}
               favorites={{
                 getIds: () => favoritesRef.current,
                 onToggle: toggleFavorite,

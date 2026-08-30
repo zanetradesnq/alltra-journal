@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
+import { Search } from "lucide-react";
 import { useFlipPosition } from "../lib/popover";
 
 declare module "@tiptap/core" {
@@ -18,6 +19,11 @@ declare module "@tiptap/core" {
       insertTag: (color?: string) => ReturnType;
     };
   }
+}
+
+export interface TagOptions {
+  /** "Find entries with this tag" — the host opens its search pre-filtered. */
+  onSearchTag?: (name: string) => void;
 }
 
 const TAG_COLORS = [
@@ -45,7 +51,7 @@ const nextColor = () => {
   return c;
 };
 
-function TagView({ node, updateAttributes }: NodeViewProps) {
+function TagView({ node, updateAttributes, extension }: NodeViewProps) {
   const name = (node.attrs.name as string) || "Tag";
   const color = (node.attrs.color as string) || "green";
   const [open, setOpen] = useState(false);
@@ -128,6 +134,19 @@ function TagView({ node, updateAttributes }: NodeViewProps) {
               placeholder="Tag name"
               className="mb-2.5 w-full rounded-md border border-border bg-card px-2 py-1.5 text-[12.5px] text-text outline-none placeholder:text-text-faint"
             />
+            {(extension.options as TagOptions).onSearchTag && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setOpen(false);
+                  (extension.options as TagOptions).onSearchTag?.(name);
+                }}
+                className="mb-2.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-text transition-colors hover:bg-[var(--hover-overlay)]"
+              >
+                <Search size={13} className="text-text-muted" /> Find entries with this tag
+              </button>
+            )}
             <p className="mb-1.5 px-0.5 text-[10px] font-medium tracking-wide text-text-faint">
               Background color
             </p>
@@ -154,12 +173,16 @@ function TagView({ node, updateAttributes }: NodeViewProps) {
   );
 }
 
-export const Tag = Node.create({
+export const Tag = Node.create<TagOptions>({
   name: "tag",
   group: "inline",
   inline: true,
   atom: true,
   selectable: true,
+
+  addOptions() {
+    return {};
+  },
 
   addAttributes() {
     return {

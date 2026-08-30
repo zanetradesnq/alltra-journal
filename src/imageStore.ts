@@ -137,6 +137,88 @@ export function useImageSrc(src: string | null | undefined): string | undefined 
   return resolved;
 }
 
+/* ── backup support — dump / load / wipe the whole blob store ─────────────── */
+export interface ImageDump {
+  [id: string]: { type: string; data: string }; // base64 payload
+}
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result);
+      resolve(s.slice(s.indexOf(",") + 1));
+    };
+    r.onerror = () => reject(r.error ?? new Error("read failed"));
+    r.readAsDataURL(blob);
+  });
+
+/** Every stored image as base64 (for a self-contained backup file). */
+export async function exportImages(): Promise<ImageDump> {
+  const db = await openDb();
+  const entries = await new Promise<{ key: string; blob: Blob }[]>((resolve, reject) => {
+    const out: { key: string; blob: Blob }[] = [];
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).openCursor();
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) return resolve(out);
+      out.push({ key: String(cur.key), blob: cur.value as Blob });
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error ?? new Error("indexedDB cursor failed"));
+  });
+  const dump: ImageDump = {};
+  for (const { key, blob } of entries) dump[key] = { type: blob.type || "image/png", data: await blobToBase64(blob) };
+  return dump;
+}
+
+export type DecodedImages = { id: string; blob: Blob }[];
+
+/** Decode a backup's base64 images to blobs — do this BEFORE touching any
+ *  storage so a corrupt entry fails the restore up front, not halfway. */
+export async function decodeImages(dump: ImageDump): Promise<DecodedImages> {
+  return Promise.all(
+    Object.entries(dump).map(async ([id, v]) => ({
+      id,
+      blob: await (await fetch(`data:${v.type};base64,${v.data}`)).blob(),
+    })),
+  );
+}
+
+/** Write decoded images back (existing ids are overwritten). */
+export async function writeImages(blobs: DecodedImages): Promise<void> {
+  if (blobs.length === 0) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    blobs.forEach(({ id, blob }) => tx.objectStore(STORE).put(blob, id));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("indexedDB write failed"));
+  });
+  blobs.forEach(({ id }) => {
+    const u = urlCache.get(id);
+    if (u) URL.revokeObjectURL(u);
+    urlCache.delete(id);
+  });
+}
+
+/** Decode + write in one go. */
+export async function importImages(dump: ImageDump): Promise<void> {
+  return writeImages(await decodeImages(dump));
+}
+
+/** Wipe every stored image (a full "replace" restore). */
+export async function clearImages(): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("indexedDB clear failed"));
+  });
+  urlCache.forEach((u) => URL.revokeObjectURL(u));
+  urlCache.clear();
+}
+
 /** Every idb:// id referenced anywhere in the given HTML/JSON strings. */
 export function collectImageIds(texts: string[]): Set<string> {
   const ids = new Set<string>();
