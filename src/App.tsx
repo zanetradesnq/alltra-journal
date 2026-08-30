@@ -2781,6 +2781,7 @@ export default function App() {
             hit={hit}
             trade={trade}
             entryDate={hit && hit.entryIndex >= 0 ? (dates[hit.entryIndex] ?? null) : null}
+            entryText={hit && hit.entryIndex >= 0 ? htmlToText(pagesRef.current[hit.entryIndex] ?? "") : ""}
             onClose={() => setTradeDetailId(null)}
             onGoToEntry={(i) => {
               setTradeDetailId(null);

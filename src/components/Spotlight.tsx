@@ -42,6 +42,42 @@ export function extractTags(html: string): string[] {
   return out;
 }
 
+/* a tag chip — a <span role=button>, never a <button>: it renders INSIDE the
+   result rows (which are buttons) and must not bubble its click into them */
+function TagChip({
+  name,
+  count,
+  active,
+  onPick,
+}: {
+  name: string;
+  count?: number;
+  active?: boolean;
+  onPick: (name: string) => void;
+}) {
+  return (
+    <span
+      role="button"
+      tabIndex={-1}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onPick(name);
+      }}
+      className={
+        "inline-flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors " +
+        (active
+          ? "bg-[rgba(var(--alltra-brand-rgb),0.16)] text-[var(--alltra-brand)]"
+          : "bg-[var(--hover-overlay)] text-text-muted hover:bg-[var(--hover-overlay-medium)] hover:text-text")
+      }
+    >
+      <Hash size={10} />
+      {name}
+      {count !== undefined && <span className="text-text-faint">{count}</span>}
+    </span>
+  );
+}
+
 type Item =
   | { kind: "entry"; key: string; entry: SearchEntry }
   | { kind: "note"; key: string; note: SearchNote }
@@ -131,6 +167,8 @@ export function Spotlight({
       if (items[sel]) pick(items[sel]);
     } else if (e.key === "Escape") {
       e.preventDefault();
+      // don't let the window-level Escape handler ALSO leave focus mode
+      e.stopPropagation();
       onClose();
     }
   };
@@ -151,29 +189,15 @@ export function Spotlight({
     );
   };
 
-  const TagChip = ({ name, count, active }: { name: string; count?: number; active?: boolean }) => (
-    <button
-      type="button"
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => setQ(`#${name}`)}
-      className={
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors " +
-        (active
-          ? "bg-[rgba(var(--alltra-brand-rgb),0.16)] text-[var(--alltra-brand)]"
-          : "bg-[var(--hover-overlay)] text-text-muted hover:bg-[var(--hover-overlay-medium)] hover:text-text")
-      }
-    >
-      <Hash size={10} />
-      {name}
-      {count !== undefined && <span className="text-text-faint">{count}</span>}
-    </button>
+  const chip = (name: string, count?: number, active?: boolean) => (
+    <TagChip key={name} name={name} count={count} active={active} onPick={(n) => setQ(`#${n}`)} />
   );
 
   let lastKind: Item["kind"] | null = null;
 
   return (
     <div
-      className="fixed inset-0 z-[400] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
+      className="fixed inset-0 z-[8500] flex items-start justify-center bg-black/30 p-6 pt-[12vh]"
       onMouseDown={onClose}
     >
       <div
@@ -199,7 +223,7 @@ export function Spotlight({
         {allTags.length > 0 && (ql === "" || (tagMode && tagQ === "")) && (
           <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
             {allTags.slice(0, 14).map(([name, count]) => (
-              <TagChip key={name} name={name} count={count} />
+              {chip(name, count)}
             ))}
           </div>
         )}
@@ -231,7 +255,7 @@ export function Spotlight({
                         {it.entry.tags.length > 0 && (
                           <span className="flex shrink-0 items-center gap-1">
                             {it.entry.tags.slice(0, 3).map((t) => (
-                              <TagChip key={t} name={t} active={tagMode && t.toLowerCase().includes(tagQ)} />
+                              {chip(t, undefined, tagMode && t.toLowerCase().includes(tagQ))}
                             ))}
                           </span>
                         )}

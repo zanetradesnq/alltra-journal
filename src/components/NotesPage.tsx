@@ -321,6 +321,10 @@ export function NotesPage({
       {composer &&
         createPortal(
           <Composer
+            // remount per note: the composer seeds its title/body state from
+            // `note` once, so switching notes without a key would save note A's
+            // text under note B's id
+            key={composer.id}
             note={composer}
             onSave={save}
             onCancel={() => setComposer(null)}

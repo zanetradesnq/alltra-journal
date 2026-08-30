@@ -139,8 +139,12 @@ function TagView({ node, updateAttributes, extension }: NodeViewProps) {
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
+                  // the rename input hasn't blurred (mousedown is prevented) —
+                  // commit the draft so the search uses the name on screen
+                  const n = draft.trim() || name;
+                  if (n !== name) updateAttributes({ name: n });
                   setOpen(false);
-                  (extension.options as TagOptions).onSearchTag?.(name);
+                  (extension.options as TagOptions).onSearchTag?.(n);
                 }}
                 className="mb-2.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px] text-text transition-colors hover:bg-[var(--hover-overlay)]"
               >
