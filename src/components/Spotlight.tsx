@@ -223,7 +223,7 @@ export function Spotlight({
         {allTags.length > 0 && (ql === "" || (tagMode && tagQ === "")) && (
           <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2.5">
             {allTags.slice(0, 14).map(([name, count]) => (
-              {chip(name, count)}
+              chip(name, count)
             ))}
           </div>
         )}
@@ -255,7 +255,7 @@ export function Spotlight({
                         {it.entry.tags.length > 0 && (
                           <span className="flex shrink-0 items-center gap-1">
                             {it.entry.tags.slice(0, 3).map((t) => (
-                              {chip(t, undefined, tagMode && t.toLowerCase().includes(tagQ))}
+                              chip(t, undefined, tagMode && t.toLowerCase().includes(tagQ))
                             ))}
                           </span>
                         )}
