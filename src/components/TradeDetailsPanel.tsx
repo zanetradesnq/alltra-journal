@@ -10,7 +10,7 @@
  * row: figures come from the row's cells; editing stays in the table, so the
  * action row's unbacked ops render disabled with their reason (never hidden).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Star, Maximize2, RotateCw, Trash2, Copy, ArrowLeftRight, Pencil, Paperclip } from "lucide-react";
 import type { TradeRowHit } from "../App";
@@ -111,6 +111,17 @@ export function TradeDetailsPanel({
   const [tab, setTab] = useState<Tab>("overview");
   const [lightbox, setLightbox] = useState(false);
   const [closing, setClosing] = useState(false);
+  // the slide-out timer lives in a ref: a repeat close is ignored, and an
+  // unmount (a NEW trade opened mid-slide-out remounts via key) cancels it so
+  // the stale timer can't null the new trade's id
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  // keyboard focus enters the dialog on open (the opener — a menu row — has
+  // unmounted, so focus would otherwise drop to <body> behind the scrim)
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
 
   // Escape: the lightbox swallows its own; otherwise close the drawer
   useEffect(() => {
@@ -126,8 +137,9 @@ export function TradeDetailsPanel({
   }, [lightbox]);
 
   const close = () => {
+    if (closing) return;
     setClosing(true);
-    window.setTimeout(onClose, 200); // the drawer stays mounted through its 200ms slide-out
+    timer.current = window.setTimeout(onClose, 200); // mounted through its 200ms slide-out
   };
 
   /* ── resolve the row into the panel's vocabulary ─────────────────────── */
@@ -213,6 +225,8 @@ export function TradeDetailsPanel({
   return createPortal(
     <div className="tdp-scrim" data-state={closing ? "close" : "open"} onMouseDown={close}>
       <aside
+        ref={dialogRef}
+        tabIndex={-1}
         className="tdp"
         data-state={closing ? "close" : "open"}
         role="dialog"

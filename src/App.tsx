@@ -2777,12 +2777,16 @@ export default function App() {
         const trade = allTrades().find((t) => t.id === tradeDetailId) ?? MOCK_TRADES.find((t) => t.id === tradeDetailId) ?? null;
         return (
           <TradeDetailsPanel
+            // keyed per trade: opening another trade remounts a fresh panel
+            // (own tab/lightbox state) instead of reusing one mid-slide-out
+            key={tradeDetailId}
             tradeId={tradeDetailId}
             hit={hit}
             trade={trade}
             entryDate={hit && hit.entryIndex >= 0 ? (dates[hit.entryIndex] ?? null) : null}
             entryText={hit && hit.entryIndex >= 0 ? htmlToText(pagesRef.current[hit.entryIndex] ?? "") : ""}
-            onClose={() => setTradeDetailId(null)}
+            // id-aware: a stale close from a previous panel never nulls a newer trade
+            onClose={() => setTradeDetailId((cur) => (cur === tradeDetailId ? null : cur))}
             onGoToEntry={(i) => {
               setTradeDetailId(null);
               if (view !== "editor") setView("editor");
